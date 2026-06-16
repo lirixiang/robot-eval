@@ -1,0 +1,13 @@
+[package]
+version = "1.0"
+description = "Local Isaac Sim streaming with custom ports"
+
+[dependencies]
+"isaacsim.exp.full.streaming" = {}
+
+[settings.app]
+livestream.port = 49200
+
+[settings.exts."omni.services.transport.server.http"]
+port = 8042
+allow_port_range = false
