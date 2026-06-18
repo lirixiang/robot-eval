@@ -1,5 +1,17 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import type { Configs, SubmitRequest } from '../types'
+
+function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
+  const dragging = useRef(false)
+  const last = useRef(0)
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    dragging.current = true; last.current = e.clientX; e.preventDefault()
+    const onMove = (ev: MouseEvent) => { if (dragging.current) { onDrag(ev.clientX - last.current); last.current = ev.clientX } }
+    const onUp = () => { dragging.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
+  }, [onDrag])
+  return <div onMouseDown={onMouseDown} className="w-1 flex-shrink-0 bg-ink-700 hover:bg-green-600/60 active:bg-green-500 cursor-col-resize transition-colors select-none" />
+}
 
 interface Props {
   configs: Configs
@@ -71,6 +83,7 @@ function formToRequest(f: FormState): SubmitRequest {
 export default function SubmitView({ configs, onSubmit }: Props) {
   const [form, setForm]       = useState<FormState>(() => DEFAULT_FORM(configs))
   const [submitting, setSubmitting] = useState(false)
+  const [previewW, setPreviewW] = useState(360)
 
   const set = (key: keyof FormState, value: unknown) => setForm(prev => ({ ...prev, [key]: value }))
 
@@ -245,7 +258,8 @@ serve(MyPolicy(), port=7860)`}</pre>
       </div>
 
       {/* RIGHT: Preview */}
-      <div className="w-[360px] flex-shrink-0 border-l border-ink-700 overflow-y-auto p-4 space-y-4 bg-ink-900">
+      <Divider onDrag={dx => setPreviewW(w => Math.max(200, Math.min(700, w - dx)))} />
+      <div style={{ width: previewW }} className="flex-shrink-0 overflow-y-auto p-4 space-y-4 bg-ink-900">
         <div className="form-section">
           <div className="flex items-center justify-between mb-2">
             <span className="tag text-ink-400">Job Config 预览</span>
