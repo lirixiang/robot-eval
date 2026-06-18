@@ -102,11 +102,10 @@ services:
     container_name: eval-platform
     network_mode: host
     volumes:
-      - ./scripts:/app/scripts:ro
-      - ./configs:/app/configs:ro
       - ./results:/app/results
       - ./backend:/app/backend
       - ./frontend/dist:/app/frontend/dist:ro
+      - ./isaac-sim:/app/isaac-sim:ro
       - ./.env:/app/.env
     environment:
       - PYTHONPATH=/app:/app/backend
@@ -115,7 +114,7 @@ services:
       - EVAL_ACTOR_MODULE=arena_actor
       - EVAL_ACTOR_CLASS=IsaacLabArenaActor
       - EVAL_PYTHONPATH=/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments
-    command: /app/backend/entrypoint.sh
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000
     depends_on:
       - postgres
       - ray-head

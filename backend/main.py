@@ -132,6 +132,7 @@ from backend.api.templates import router as templates_router
 from backend.api.analysis  import router as analysis_router
 from backend.api.results   import router as results_router
 from backend.api.arena     import router as arena_router
+from backend.api.configs   import router as configs_router
 
 app.include_router(jobs_router)
 app.include_router(runs_router)
@@ -140,6 +141,7 @@ app.include_router(templates_router)
 app.include_router(analysis_router)
 app.include_router(results_router)
 app.include_router(arena_router)
+app.include_router(configs_router)
 
 @app.get("/api/health")
 async def health():
