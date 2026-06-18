@@ -10,3 +10,4 @@ backend/jobs.db
 frontend/node_modules/
 data/
 *.db
+frontend/tsconfig.tsbuildinfo
