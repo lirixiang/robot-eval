@@ -257,24 +257,24 @@ export default function HostsPanel({ onWorkersChanged }: Props) {
       {hosts.length === 0 ? (
         <p className="text-[11px] text-ink-600 py-2">暂无注册主机。点击"添加主机"开始配置。</p>
       ) : (
-        <table className="w-full text-[11px]">
+        <table className="w-full text-[11px] table-fixed">
           <thead>
             <tr className="text-ink-500 border-b border-ink-800">
-              <th className="text-left py-1.5 pr-4 font-normal">标签</th>
-              <th className="text-left py-1.5 pr-4 font-normal">IP</th>
-              <th className="text-left py-1.5 pr-4 font-normal">用户</th>
-              <th className="text-left py-1.5 pr-4 font-normal">Worker</th>
-              <th className="text-right py-1.5 font-normal">操作</th>
+              <th className="text-left py-1.5 pr-3 font-normal w-[22%]">标签</th>
+              <th className="text-left py-1.5 pr-3 font-normal w-[28%]">IP</th>
+              <th className="text-left py-1.5 pr-3 font-normal w-[15%]">用户</th>
+              <th className="text-left py-1.5 pr-3 font-normal w-[15%]">Worker</th>
+              <th className="text-right py-1.5 font-normal w-[20%]">操作</th>
             </tr>
           </thead>
           <tbody>
             {hosts.map(h => (
               <>
                 <tr key={h.id} className="border-b border-ink-800/50">
-                  <td className="py-2 pr-4 text-ink-200 font-medium">{h.label}</td>
-                  <td className="py-2 pr-4 font-mono text-ink-300">{h.host}:{h.port}</td>
-                  <td className="py-2 pr-4 text-ink-400">{h.username}</td>
-                  <td className="py-2 pr-4">
+                  <td className="py-2 pr-3 text-ink-200 font-medium truncate">{h.label}</td>
+                  <td className="py-2 pr-3 font-mono text-ink-300 truncate">{h.host}:{h.port}</td>
+                  <td className="py-2 pr-3 text-ink-400 truncate">{h.username}</td>
+                  <td className="py-2 pr-3">
                     {h.worker_count > 0
                       ? <span className="chip chip-run">{h.worker_count} 运行</span>
                       : <span className="text-ink-600">—</span>}
