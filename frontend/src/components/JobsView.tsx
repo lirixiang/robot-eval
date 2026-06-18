@@ -1,8 +1,21 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { Job } from '../types'
 import type { ViewName } from '../App'
 import { setBaseline } from '../api'
 import { STATUS_CHIP_CLASS, RetryBadge } from './StatusChip'
+
+/** Drag-handle divider for horizontal resizing */
+function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
+  const dragging = useRef(false)
+  const last     = useRef(0)
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    dragging.current = true; last.current = e.clientX; e.preventDefault()
+    const onMove = (ev: MouseEvent) => { if (dragging.current) { onDrag(ev.clientX - last.current); last.current = ev.clientX } }
+    const onUp   = () => { dragging.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
+  }, [onDrag])
+  return <div onMouseDown={onMouseDown} className="w-1 flex-shrink-0 bg-ink-700 hover:bg-green-600/60 active:bg-green-500 cursor-col-resize transition-colors select-none" />
+}
 
 interface Props {
   jobs: Job[]
@@ -24,6 +37,7 @@ function LogLine({ line }: { line: string }) {
 
 export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, onNavigate, onReproduce }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
+  const [rightW, setRightW] = useState(320)   // initial ≈ w-80
   const logEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -137,8 +151,9 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
         </div>
       </div>
 
-      {/* Right detail panel */}
-      <div className="w-80 flex-shrink-0 bg-ink-900 border-l border-ink-700 overflow-y-auto p-3 flex flex-col gap-3">
+      {/* Right detail panel (resizable from left edge) */}
+      <Divider onDrag={dx => setRightW(w => Math.max(200, Math.min(640, w - dx)))} />
+      <div style={{ width: rightW }} className="flex-shrink-0 bg-ink-900 border-l border-ink-700 overflow-y-auto p-3 flex flex-col gap-3">
         {!selectedJob ? (
           <div className="flex flex-col items-center justify-center h-full text-ink-600 gap-2">
             <i className="fas fa-list-check text-2xl" />

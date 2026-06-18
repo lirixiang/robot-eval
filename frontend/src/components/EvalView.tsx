@@ -1,3 +1,4 @@
+import { useRef, useState, useCallback } from 'react'
 import JobsView    from './JobsView'
 import ResultsView from './ResultsView'
 import SubmitView  from './SubmitView'
@@ -20,17 +21,51 @@ interface Props {
   onRightTabChange:     (t: RightTab) => void
 }
 
+/** Drag-handle divider — call onDrag(deltaX) on mousemove */
+function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
+  const dragging = useRef(false)
+  const last     = useRef(0)
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    dragging.current = true
+    last.current = e.clientX
+    e.preventDefault()
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging.current) return
+      onDrag(ev.clientX - last.current)
+      last.current = ev.clientX
+    }
+    const onUp = () => { dragging.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [onDrag])
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className="w-1 flex-shrink-0 bg-ink-800 hover:bg-green-600/60 active:bg-green-500 cursor-col-resize transition-colors select-none"
+    />
+  )
+}
+
 export default function EvalView({
   jobs, results, configs, logs, selectedJobId,
   onSelectJob, onSubmit, onCancel, onReproduce,
   onNavigateAnalysis, rightTab, onRightTabChange,
 }: Props) {
+  const [leftW, setLeftW] = useState(288)   // initial 288px ≈ w-72
+
+  const clampLeft = (w: number) => Math.max(180, Math.min(520, w))
+
   return (
     <div className="h-full flex overflow-hidden">
-      {/* Left: submit form */}
-      <div className="w-72 flex-shrink-0 border-r border-ink-800 overflow-y-auto">
+      {/* Left: submit form (resizable) */}
+      <div style={{ width: leftW }} className="flex-shrink-0 overflow-y-auto">
         <SubmitView configs={configs} onSubmit={onSubmit} />
       </div>
+
+      <Divider onDrag={dx => setLeftW(w => clampLeft(w + dx))} />
 
       {/* Right: tab panel */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -64,7 +99,7 @@ export default function EvalView({
               logs={logs}
               onSelect={onSelectJob}
               onCancel={onCancel}
-              onNavigate={() => {/* submit form is always visible on the left — no nav needed */}}
+              onNavigate={() => {/* submit form always visible on left */}}
               onReproduce={onReproduce}
             />
           )}
