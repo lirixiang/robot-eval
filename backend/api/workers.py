@@ -1,8 +1,10 @@
 from __future__ import annotations
+import structlog
 from fastapi import APIRouter, HTTPException
 from backend.db import db
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
+logger = structlog.get_logger(__name__)
 
 @router.get("")
 async def get_workers():

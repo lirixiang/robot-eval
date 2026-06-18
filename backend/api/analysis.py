@@ -1,9 +1,9 @@
 from __future__ import annotations
-import logging
+import structlog
 from fastapi import APIRouter, HTTPException, Query
 from backend.db import db
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 @router.get("/compare")

@@ -1,10 +1,11 @@
 """Robot Eval Platform v2 — FastAPI entry point."""
 from __future__ import annotations
-import asyncio, logging, os
+import asyncio, os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import ray
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -12,8 +13,9 @@ from fastapi.staticfiles import StaticFiles
 from backend.db import db, init_db
 from backend.base_actor import load_actor_class
 from backend.engines.arena_engine import ArenaEngine
+from backend.logging_config import configure_logging
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _DATABASE_URL    = os.environ.get("DATABASE_URL",
     "postgresql://eval:eval_secret@127.0.0.1:5432/robot_eval")
@@ -33,6 +35,7 @@ _ISAAC_LD  = ":".join([
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
     await init_db(_DATABASE_URL)
 
     # Init Ray
@@ -40,9 +43,9 @@ async def lifespan(app: FastAPI):
         ray.init(address=_RAY_ADDRESS, ignore_reinit_error=True,
                  log_to_driver=False,
                  runtime_env={"working_dir": "/app/backend"})
-        logger.info("ray.connected", extra={"address": _RAY_ADDRESS})
+        logger.info("ray.connected", address=_RAY_ADDRESS)
     except Exception as exc:
-        logger.warning("ray.unavailable", extra={"error": str(exc)})
+        logger.warning("ray.unavailable", error=str(exc))
 
     # Start scheduler
     from backend.engines.scheduler import JobScheduler
@@ -104,9 +107,9 @@ async def _create_actors():
         name = w["actor_name"]
         try:
             ray.get_actor(name, namespace="robot-eval")
-            logger.info("actor.exists", extra={"name": name})
+            logger.info("actor.exists", name=name)
         except Exception:
-            logger.info("actor.creating", extra={"name": name})
+            logger.info("actor.creating", name=name)
             ActorClass.options(
                 name=name, namespace="robot-eval",
                 lifetime="detached", num_gpus=1,

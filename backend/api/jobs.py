@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio, json
 from typing import Any
+import structlog
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from backend.db import db
 from backend.db.queries import jobs as jq, runs as rq
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+logger = structlog.get_logger(__name__)
 
 def _get_engine():
     from backend.engines.job_engine import job_engine

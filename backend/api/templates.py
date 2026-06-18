@@ -1,11 +1,11 @@
 from __future__ import annotations
-import logging
+import structlog
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from backend.db import db
 from backend.db.queries import templates as tq
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/templates", tags=["templates"])
 
 

@@ -1,10 +1,10 @@
 from __future__ import annotations
-import logging
+import structlog
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from backend.db import db
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/arena", tags=["arena"])
 
 class CreateMatchRequest(BaseModel):

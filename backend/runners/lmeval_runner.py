@@ -1,8 +1,9 @@
 from __future__ import annotations
-import asyncio, json, logging, pathlib, shutil, tempfile, time, uuid
+import asyncio, json, pathlib, shutil, tempfile, time, uuid
+import structlog
 from backend.runners.base import BaseRunner, RunResult, EpisodeResult
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class LMEvalRunner(BaseRunner):

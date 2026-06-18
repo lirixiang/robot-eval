@@ -1,9 +1,11 @@
 from __future__ import annotations
+import structlog
 from fastapi import APIRouter, HTTPException
 from backend.db import db
 from backend.db.queries import runs as rq, jobs as jq, episodes as eq
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+logger = structlog.get_logger(__name__)
 
 @router.get("/{run_id}")
 async def get_run(run_id: str):

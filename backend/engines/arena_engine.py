@@ -1,11 +1,12 @@
 from __future__ import annotations
-import asyncio, logging, random, time, uuid
+import asyncio, random, time, uuid
+import structlog
 import asyncpg
 from backend.elo.calculator import update_glicko2, draw_glicko2
 from backend.elo.significance import bootstrap_ci, SignificanceResult
 from backend.db.queries import matches as mq, elo as eq
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Default judge config used when not specified
 _DEFAULT_JUDGE = {
@@ -69,9 +70,9 @@ class ArenaEngine:
 
         await mq.update_match(self._pool, match_id, status="running")
         match = await mq.get_match(self._pool, match_id)
-        logger.info("arena.match_created", extra={
-            "match_id": match_id, "model_a": model_a, "model_b": model_b,
-        })
+        logger.info("arena.match_created",
+            match_id=match_id, model_a=model_a, model_b=model_b,
+        )
 
         # Background: wait for both jobs and judge
         task = asyncio.create_task(
@@ -125,11 +126,11 @@ class ArenaEngine:
                     [bool(e["success"]) for e in eps_a],
                     [bool(e["success"]) for e in eps_b],
                 )
-                logger.info("arena.significance", extra={
-                    "match_id": match_id,
-                    "significant": sig.significant,
-                    "ci": f"[{sig.ci_low}, {sig.ci_high}]",
-                })
+                logger.info("arena.significance",
+                    match_id=match_id,
+                    significant=sig.significant,
+                    ci=f"[{sig.ci_low}, {sig.ci_high}]",
+                )
 
                 # Update Elo ratings
                 await self._update_elo(
@@ -141,14 +142,14 @@ class ArenaEngine:
                 self._pool, match_id,
                 status="done", winner=winner, finished_at=time.time(),
             )
-            logger.info("arena.match_done", extra={
-                "match_id": match_id, "winner": winner,
-            })
+            logger.info("arena.match_done",
+                match_id=match_id, winner=winner,
+            )
 
         except Exception as exc:
-            logger.exception("arena.match_error", extra={
-                "match_id": match_id, "error": str(exc),
-            })
+            logger.exception("arena.match_error",
+                match_id=match_id, error=str(exc),
+            )
             await mq.update_match(self._pool, match_id, status="done",
                                    winner=None, finished_at=time.time())
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
-import time, logging
+import time
+import structlog
 import httpx
 from backend.runners.base import BaseRunner, RunResult, EpisodeResult
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class RemotePolicyRunner(BaseRunner):
     """Runs eval by sending observations to an external HTTP policy server."""

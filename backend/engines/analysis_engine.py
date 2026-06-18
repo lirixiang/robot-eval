@@ -1,8 +1,8 @@
 from __future__ import annotations
-import logging
+import structlog
 import asyncpg
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 async def compare(pool: asyncpg.Pool, run_ids: list[str]) -> dict:
     """Multi-run metric comparison with episode-level matrix."""

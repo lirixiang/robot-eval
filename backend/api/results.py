@@ -2,10 +2,12 @@
 shaped as JobResult for the frontend ResultsView."""
 from __future__ import annotations
 import json
+import structlog
 from fastapi import APIRouter
 from backend.db import db
 
 router = APIRouter(prefix="/api/results", tags=["results"])
+logger = structlog.get_logger(__name__)
 
 
 @router.get("")

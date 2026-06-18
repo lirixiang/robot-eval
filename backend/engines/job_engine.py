@@ -1,9 +1,10 @@
 from __future__ import annotations
-import uuid, logging
+import uuid
+import structlog
 import asyncpg
 from backend.db.queries import jobs as jq, runs as rq
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class JobEngine:
     def __init__(self, pool: asyncpg.Pool, scheduler):
@@ -38,12 +39,12 @@ class JobEngine:
             config=config,
         )
         await self._scheduler.enqueue(job_id)
-        logger.info("job.created", extra={"job_id": job_id, "model": model_name})
+        logger.info("job.created", job_id=job_id, model=model_name)
         return job
 
     async def cancel_job(self, job_id: str) -> None:
         await jq.update_job_status(self._pool, job_id, "cancelled")
-        logger.info("job.cancelled", extra={"job_id": job_id})
+        logger.info("job.cancelled", job_id=job_id)
 
     async def reproduce_job(self, job_id: str) -> dict:
         original = await jq.get_job(self._pool, job_id)

@@ -1,8 +1,9 @@
 from __future__ import annotations
-import time, logging
+import time
+import structlog
 from backend.runners.base import BaseRunner, RunResult, EpisodeResult
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class IsaacLabRunner(BaseRunner):
     """Dispatches a run_job call to a Ray Actor (IsaacLabArenaActor)."""

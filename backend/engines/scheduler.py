@@ -1,10 +1,11 @@
 from __future__ import annotations
-import asyncio, random, time, uuid, logging
+import asyncio, random, time, uuid
+import structlog
 import asyncpg
 from backend.db.queries import jobs as jq, runs as rq, episodes as eq
 from backend.runners.registry import get_runner
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class JobScheduler:
     """
@@ -26,11 +27,11 @@ class JobScheduler:
         for w in self._workers:
             await self._free_actors.put(w["actor_name"])
         asyncio.create_task(self._dispatch_loop())
-        logger.info("scheduler.started", extra={"workers": len(self._workers)})
+        logger.info("scheduler.started", workers=len(self._workers))
 
     async def enqueue(self, job_id: str) -> None:
         await self._job_queue.put(job_id)
-        logger.info("scheduler.enqueued", extra={"job_id": job_id})
+        logger.info("scheduler.enqueued", job_id=job_id)
 
     async def notify_free(self, actor_name: str) -> None:
         await self._free_actors.put(actor_name)
@@ -90,7 +91,7 @@ class JobScheduler:
                 await jq.update_job_status(self._pool, job_id, "done")
                 await jq.append_log(self._pool, job_id,
                                       f"完成 metrics={result.metrics}")
-                logger.info("job.done", extra={"job_id": job_id, "run_id": run_id})
+                logger.info("job.done", job_id=job_id, run_id=run_id)
 
             except asyncio.TimeoutError:
                 await _handle_failure(self._pool, job_id, run_id,
