@@ -2,9 +2,7 @@
 import asyncio
 import os
 import re
-import time
 from datetime import datetime, timezone
-from typing import Optional
 
 import paramiko
 from cryptography.fernet import Fernet
@@ -235,6 +233,7 @@ async def deploy_worker(host_id: int) -> dict:
     container_name  = f"isaac-lab-worker-{worker_id}"
 
     password = _decrypt(host_row["password_enc"])
+    host_row = dict(host_row)
     ssh = dict(host=host_row["host"], port=host_row["port"],
                username=host_row["username"], password=password)
 
@@ -270,8 +269,9 @@ async def deploy_worker(host_id: int) -> dict:
     # Background health-check: poll docker inspect for up to 60 s
     asyncio.create_task(_wait_for_worker(host_row, worker_id, container_name, password))
 
-    return {k: v for k, v in worker_row.items()
-            if not isinstance(v, bytes)}
+    worker_row = dict(worker_row)
+    worker_row.pop("password_enc", None)
+    return worker_row
 
 
 async def _wait_for_worker(host_row: dict, worker_id: int,
