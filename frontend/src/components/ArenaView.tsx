@@ -9,7 +9,7 @@ function EloBar({ rating, rd, ciLow, ciHigh }: { rating: number; rd: number; ciL
   const hi = ciHigh != null ? Math.round(ciHigh) : Math.round(rating + 2 * rd)
   return (
     <div className="flex items-center gap-2">
-      <span className="num text-sm font-semibold" style={{ color }}>{Math.round(rating)}</span>
+      <span className="num text-xs font-semibold" style={{ color }}>{Math.round(rating)}</span>
       <span className="text-[11px] text-ink-500">[{lo}, {hi}]</span>
     </div>
   )
@@ -108,8 +108,8 @@ export default function ArenaView() {
     <div className="h-full overflow-hidden flex gap-4 p-4">
       {/* Left: new match form */}
       <div className="w-64 flex-shrink-0 flex flex-col gap-4">
-        <div className="bg-ink-900 rounded-lg border border-ink-700 p-4 space-y-3">
-          <div className="text-sm font-semibold text-ink-200 flex items-center gap-2">
+        <div className="form-section space-y-3">
+          <div className="tag text-ink-400 flex items-center gap-2">
             <i className="fas fa-swords text-gold text-[11px]" />
             新对战
           </div>
@@ -119,7 +119,7 @@ export default function ArenaView() {
             <select
               value={selectedEnv}
               onChange={e => setEnv(e.target.value)}
-              className="w-full bg-ink-800 border border-ink-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-green-500"
+              className="inp"
             >
               {displayEnvs.map(e => (
                 <option key={e} value={e}>{e}</option>
@@ -133,7 +133,7 @@ export default function ArenaView() {
               value={modelA}
               onChange={e => setModelA(e.target.value)}
               placeholder="pi0, zero_action, ..."
-              className="w-full bg-ink-800 border border-ink-600 rounded px-2 py-1.5 text-sm text-white placeholder-ink-500 focus:outline-none focus:border-green-500"
+              className="inp"
             />
           </div>
 
@@ -143,7 +143,7 @@ export default function ArenaView() {
               value={modelB}
               onChange={e => setModelB(e.target.value)}
               placeholder="pi0.5, rsl_rl, ..."
-              className="w-full bg-ink-800 border border-ink-600 rounded px-2 py-1.5 text-sm text-white placeholder-ink-500 focus:outline-none focus:border-green-500"
+              className="inp"
             />
           </div>
 
@@ -153,7 +153,7 @@ export default function ArenaView() {
               <select
                 value={mode}
                 onChange={e => setMode(e.target.value as typeof mode)}
-                className="w-full bg-ink-800 border border-ink-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-green-500"
+                className="inp"
               >
                 <option value="direct">直接对战</option>
                 <option value="swiss">瑞士制</option>
@@ -168,7 +168,7 @@ export default function ArenaView() {
                 min={1}
                 max={100}
                 onChange={e => setNumEpisodes(Number(e.target.value))}
-                className="w-16 bg-ink-800 border border-ink-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-green-500"
+                className="inp w-16"
               />
             </div>
           </div>
@@ -180,17 +180,17 @@ export default function ArenaView() {
               onChange={e => setIsBlind(e.target.checked)}
               className="rounded"
             />
-            <span className="text-sm text-ink-300">盲测模式</span>
+            <span className="text-[12px] text-ink-300">盲测模式</span>
           </label>
 
           {error && (
-            <div className="text-red-400 text-[11px] break-all">{error}</div>
+            <div className="text-fail text-[11px] break-all">{error}</div>
           )}
 
           <button
             onClick={handleCreateMatch}
             disabled={submitting || !modelA || !modelB}
-            className="w-full py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-sm rounded transition-colors"
+            className="btn-primary w-full"
           >
             {submitting ? '提交中…' : '发起对战'}
           </button>
@@ -208,10 +208,10 @@ export default function ArenaView() {
       {/* Center: match list */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold text-ink-200">
+          <span className="tag text-ink-400">
             对战记录
             {matches.length > 0 && (
-              <span className="ml-2 text-[11px] text-ink-500 font-normal">({matches.length})</span>
+              <span className="ml-2 text-ink-500 font-normal">({matches.length})</span>
             )}
           </span>
           <button
@@ -224,8 +224,8 @@ export default function ArenaView() {
         </div>
         <div className="flex-1 overflow-y-auto space-y-1.5">
           {!loading && matches.length === 0 ? (
-            <div className="text-center text-ink-500 text-sm py-12">
-              <i className="fas fa-swords text-2xl block mb-3 opacity-20" />
+            <div className="text-center text-ink-500 text-xs py-12">
+              <i className="fas fa-swords text-xl block mb-3 opacity-20" />
               暂无对战记录
               <div className="text-[11px] mt-1 text-ink-600">发起第一场对战</div>
             </div>
@@ -237,12 +237,12 @@ export default function ArenaView() {
               >
                 <div className="w-24 font-mono text-[11px] text-ink-600 truncate">{m.id.slice(0, 8)}</div>
                 <div className="flex-1 flex items-center gap-2 min-w-0">
-                  <span className="text-sm text-ink-200 truncate">{m.model_a}</span>
-                  <span className="text-ink-600 text-xs">vs</span>
+                  <span className="text-xs text-ink-200 truncate">{m.model_a}</span>
+                  <span className="text-ink-600 text-[10px]">vs</span>
                   {m.model_b === '?' ? (
-                    <span className="text-sm text-ink-500 italic">?</span>
+                    <span className="text-xs text-ink-500 italic">?</span>
                   ) : (
-                    <span className="text-sm text-ink-200 truncate">{m.model_b}</span>
+                    <span className="text-xs text-ink-200 truncate">{m.model_b}</span>
                   )}
                 </div>
                 <div className="text-[11px] text-ink-500 hidden xl:block">{m.env_name}</div>
@@ -258,20 +258,20 @@ export default function ArenaView() {
 
       {/* Right: Elo leaderboard */}
       <div className="w-72 flex-shrink-0 flex flex-col">
-        <div className="text-sm font-semibold text-ink-200 mb-3 flex items-center gap-2">
+        <div className="tag text-ink-400 mb-3 flex items-center gap-2">
           <i className="fas fa-ranking-star text-gold text-[11px]" />
           Elo 排名
-          <span className="text-[11px] text-ink-500 font-normal">· {selectedEnv}</span>
+          <span className="text-ink-500 font-normal normal-case">· {selectedEnv}</span>
         </div>
         <div className="flex-1 bg-ink-900 rounded-lg border border-ink-700 overflow-hidden">
           {!loading && leaderboard.length === 0 ? (
-            <div className="text-center text-ink-500 text-sm py-12">
-              <i className="fas fa-chart-bar text-2xl block mb-3 opacity-20" />
+            <div className="text-center text-ink-500 text-xs py-12">
+              <i className="fas fa-chart-bar text-xl block mb-3 opacity-20" />
               暂无排名数据
               <div className="text-[11px] mt-1 text-ink-600">完成对战后自动生成</div>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-ink-800 text-ink-500 text-[11px]">
                   <th className="text-left px-3 py-2 font-normal">#</th>

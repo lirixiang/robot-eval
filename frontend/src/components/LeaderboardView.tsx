@@ -191,8 +191,8 @@ function EloTabContent() {
           <span className="chip chip-env text-[10px]">{entries.length} 个模型</span>
         </div>
         {entries.length === 0 && !loading ? (
-          <div className="text-center py-10 text-ink-600 text-sm">
-            <i className="fas fa-swords text-2xl block mb-2 opacity-20" />
+          <div className="text-center py-10 text-ink-600 text-xs">
+            <i className="fas fa-swords text-xl block mb-2 opacity-20" />
             暂无 Elo 数据 — 在竞技场发起对战后自动更新
           </div>
         ) : (

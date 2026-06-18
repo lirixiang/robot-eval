@@ -85,7 +85,7 @@ export default function SubmitView({ configs, onSubmit }: Props) {
   const preview = formToRequest(form)
 
   return (
-    <div className="flex h-[calc(100vh-84px)] overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* LEFT: Form */}
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
 

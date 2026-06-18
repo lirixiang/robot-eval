@@ -52,7 +52,7 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
       {/* Main table */}
       <div className="flex-1 flex flex-col border-r border-ink-700 min-w-0">
         <div className="flex items-center gap-3 px-4 py-2.5 border-b border-ink-800 flex-shrink-0">
-          <span className="text-sm font-medium text-ink-200">任务队列</span>
+          <span className="tag text-ink-400">任务队列</span>
           <div className="seg">
             {FILTERS.map(f => (
               <button key={f.id} className={filter === f.id ? 'on' : ''} onClick={() => setFilter(f.id)}>{f.label}</button>

@@ -153,7 +153,7 @@ export default function DashboardView({ jobs, results, workers, activeJob, logs,
         ) : (
           <div className="flex-shrink-0 border-b border-ink-800 p-3 flex items-center justify-between bg-ink-900">
             <span className="text-xs text-ink-500">暂无运行中任务</span>
-            <button className="btn-sm" onClick={() => onNavigate('submit')}>
+            <button className="btn-sm" onClick={() => onNavigate('eval')}>
               <i className="fas fa-plus mr-1" />新建任务
             </button>
           </div>
@@ -185,7 +185,7 @@ export default function DashboardView({ jobs, results, workers, activeJob, logs,
               )}
               {recentResults.map(r => (
                 <tr key={r.job_id} className="row-hover border-b border-ink-800/50 cursor-pointer"
-                    onClick={() => { onSelectJob(r.job_id); onNavigate('jobs') }}>
+                    onClick={() => { onSelectJob(r.job_id); onNavigate('eval') }}>
                   <td className="px-3 py-2 font-mono text-gold">{r.job_id.slice(0, 8)}</td>
                   <td className="px-3 py-2 text-ink-300">{String(r.job.arena_env_args?.environment ?? '–')}</td>
                   <td className="px-3 py-2"><span className="chip chip-env">{r.job.policy_type}</span></td>
@@ -194,7 +194,7 @@ export default function DashboardView({ jobs, results, workers, activeJob, logs,
                   <td className="px-3 py-2 num text-ink-300">{r.elapsed_s.toFixed(1)}s</td>
                   <td className="px-3 py-2"><span className="chip chip-done">done</span></td>
                   <td className="px-3 py-2">
-                    <button className="btn-sm" onClick={e => { e.stopPropagation(); onSelectJob(r.job_id); onNavigate('jobs') }}>查看</button>
+                    <button className="btn-sm" onClick={e => { e.stopPropagation(); onSelectJob(r.job_id); onNavigate('eval') }}>查看</button>
                   </td>
                 </tr>
               ))}

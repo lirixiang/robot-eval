@@ -106,8 +106,8 @@ export default function ResultsView({ results, onNavigateAnalysis }: Props) {
       <div className="grid grid-cols-5 gap-3">
         {topMetrics.map(m => (
           <div key={m.label} className="form-section p-3">
-            <div className="text-ink-400 text-xs mb-1">{m.label}</div>
-            <div className={`num text-2xl font-bold ${m.color}`}>{m.value}</div>
+            <div className="text-[11px] text-ink-500 mb-1">{m.label}</div>
+            <div className={`num text-lg font-semibold ${m.color}`}>{m.value}</div>
           </div>
         ))}
       </div>
@@ -200,7 +200,7 @@ export default function ResultsView({ results, onNavigateAnalysis }: Props) {
                       <td className="px-3 py-2">
                         <input type="checkbox" checked={selected.has(r.job_id)}
                                onChange={() => toggleSelect(r.job_id)}
-                               className="accent-green-500 cursor-pointer" />
+                               className="accent-gold cursor-pointer" />
                       </td>
                       <td className="px-3 py-2 font-mono text-gold">{r.job_id.slice(0, 8)}</td>
                       <td className="px-3 py-2 text-ink-300 max-w-[140px] truncate">{String(r.job.arena_env_args?.environment ?? '–')}</td>
@@ -227,7 +227,7 @@ export default function ResultsView({ results, onNavigateAnalysis }: Props) {
                               {run.episodes.map((ep, i) => (
                                 <div key={i}
                                      title={`#${ep.episode_index}: ${ep.success ? '✓' : '✗'} (${ep.termination_reason})`}
-                                     className={`w-4 h-4 rounded-sm ${ep.success ? 'bg-green-500' : 'bg-red-500/60'}`}
+                                     className={`w-4 h-4 rounded-sm ${ep.success ? 'bg-success' : 'bg-fail/60'}`}
                                 />
                               ))}
                             </div>

@@ -45,7 +45,7 @@ export default function EvalView({
               onClick={() => onRightTabChange(t.id)}
               className={`flex items-center gap-1.5 px-3 py-2 text-[12px] border-b-2 -mb-px transition-colors ${
                 rightTab === t.id
-                  ? 'border-green-500 text-white'
+                  ? 'border-gold text-white'
                   : 'border-transparent text-ink-400 hover:text-ink-200'
               }`}
             >

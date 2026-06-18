@@ -58,27 +58,27 @@ export default function AnalysisView({ initialRunIds = [] }: Props) {
 
   return (
     <div className="h-full overflow-y-auto p-5 space-y-6">
-      <h2 className="text-white font-semibold text-lg">分析</h2>
+      <div className="tag text-ink-400">分析</div>
 
       {/* Compare section */}
-      <section className="bg-ink-900 rounded-lg p-4 border border-ink-700 space-y-3">
-        <div className="text-sm font-medium text-ink-200">多 Run 对比</div>
+      <section className="form-section space-y-3">
+        <div className="tag text-ink-400">多 Run 对比</div>
         <div className="flex gap-2">
           <input
             value={runInput}
             onChange={e => setRunInput(e.target.value)}
             placeholder="Run ID，逗号分隔"
-            className="flex-1 bg-ink-800 border border-ink-600 rounded px-3 py-1.5 text-sm text-white placeholder-ink-500 focus:outline-none focus:border-green-500"
+            className="inp flex-1"
           />
           <button onClick={runCompare} disabled={compareLoading}
-                  className="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white text-sm rounded disabled:opacity-50">
+                  className="btn-primary text-[12px] px-4 py-1.5">
             {compareLoading ? '加载中…' : '对比'}
           </button>
         </div>
 
         {compare && (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="text-ink-400 text-left border-b border-ink-700">
                   <th className="pb-2 pr-4">指标</th>
@@ -95,7 +95,7 @@ export default function AnalysisView({ initialRunIds = [] }: Props) {
                       const v = vals[r.id]
                       const isBest = vals['best'] === r.id
                       return (
-                        <td key={r.id} className={`py-1.5 pr-4 font-mono ${isBest ? 'text-green-400 font-semibold' : 'text-ink-200'}`}>
+                        <td key={r.id} className={`py-1.5 pr-4 font-mono ${isBest ? 'text-success font-semibold' : 'text-ink-200'}`}>
                           {typeof v === 'number' ? v.toFixed(3) : '—'}
                         </td>
                       )
@@ -109,21 +109,21 @@ export default function AnalysisView({ initialRunIds = [] }: Props) {
       </section>
 
       {/* Trend section */}
-      <section className="bg-ink-900 rounded-lg p-4 border border-ink-700 space-y-3">
-        <div className="text-sm font-medium text-ink-200">趋势分析</div>
+      <section className="form-section space-y-3">
+        <div className="tag text-ink-400">趋势分析</div>
         <div className="flex gap-2 flex-wrap">
           <input value={trendModel} onChange={e => setTrendModel(e.target.value)}
-                 placeholder="模型名称" className="bg-ink-800 border border-ink-600 rounded px-3 py-1.5 text-sm text-white placeholder-ink-500 focus:outline-none focus:border-green-500 w-40" />
+                 placeholder="模型名称" className="inp w-40" />
           <input value={trendEnv} onChange={e => setTrendEnv(e.target.value)}
-                 placeholder="环境名称" className="bg-ink-800 border border-ink-600 rounded px-3 py-1.5 text-sm text-white placeholder-ink-500 focus:outline-none focus:border-green-500 w-40" />
+                 placeholder="环境名称" className="inp w-40" />
           <select value={trendDays} onChange={e => setTrendDays(Number(e.target.value))}
-                  className="bg-ink-800 border border-ink-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-green-500">
+                  className="inp w-auto">
             <option value={7}>7天</option>
             <option value={30}>30天</option>
             <option value={90}>90天</option>
           </select>
           <button onClick={runTrend} disabled={trendLoading}
-                  className="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white text-sm rounded disabled:opacity-50">
+                  className="btn-primary text-[12px] px-4 py-1.5">
             查询
           </button>
         </div>
@@ -142,12 +142,12 @@ export default function AnalysisView({ initialRunIds = [] }: Props) {
         )}
 
         {trendData.length === 0 && !trendLoading && trendModel && (
-          <div className="text-ink-500 text-sm text-center py-4">暂无数据</div>
+          <div className="text-ink-500 text-xs text-center py-4">暂无数据</div>
         )}
       </section>
 
       {error && (
-        <div className="bg-red-900/20 border border-red-800/40 rounded p-3 text-red-400 text-sm">{error}</div>
+        <div className="bg-fail/10 border border-fail/30 rounded-lg p-3 text-fail text-xs">{error}</div>
       )}
     </div>
   )
