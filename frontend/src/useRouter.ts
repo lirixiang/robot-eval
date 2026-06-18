@@ -4,26 +4,24 @@ import type { ViewName } from './App'
 const PATH_MAP: Record<string, ViewName> = {
   '/':            'dashboard',
   '/dashboard':   'dashboard',
-  '/submit':      'submit',
-  '/jobs':        'jobs',
-  '/results':     'results',
-  '/workers':     'workers',
-  '/leaderboard': 'leaderboard',
-  '/analysis':    'analysis',
+  '/eval':        'eval',
   '/arena':       'arena',
-  '/templates':   'templates',
+  '/system':      'system',
+  // Legacy: map old paths to their new host page
+  '/submit':      'eval',
+  '/jobs':        'eval',
+  '/results':     'eval',
+  '/workers':     'system',
+  '/templates':   'system',
+  '/leaderboard': 'arena',
+  '/analysis':    'arena',
 }
 
 const VIEW_PATH: Record<ViewName, string> = {
-  dashboard:   '/',
-  submit:      '/submit',
-  jobs:        '/jobs',
-  results:     '/results',
-  workers:     '/workers',
-  leaderboard: '/leaderboard',
-  analysis:    '/analysis',
-  arena:       '/arena',
-  templates:   '/templates',
+  dashboard: '/',
+  eval:      '/eval',
+  arena:     '/arena',
+  system:    '/system',
 }
 
 function currentView(): ViewName {

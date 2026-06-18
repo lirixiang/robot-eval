@@ -3,17 +3,12 @@ import { fetchJobs, fetchConfigs, fetchResults, fetchWorkers, submitJob, cancelJ
 import type { Job, JobResult, Worker, Configs, SubmitRequest } from './types'
 import { useRouter } from './useRouter'
 import DashboardView  from './components/DashboardView'
-import SubmitView     from './components/SubmitView'
-import JobsView       from './components/JobsView'
-import ResultsView    from './components/ResultsView'
-import WorkersView    from './components/WorkersView'
+import EvalView               from './components/EvalView'
+import ArenaConsolidatedView  from './components/ArenaConsolidatedView'
+import SystemView             from './components/SystemView'
 import StreamModal    from './components/StreamModal'
-import LeaderboardView from './components/LeaderboardView'
-import AnalysisView   from './components/AnalysisView'
-import ArenaView      from './components/ArenaView'
-import TemplatesView  from './components/TemplatesView'
 
-export type ViewName = 'dashboard' | 'submit' | 'jobs' | 'results' | 'workers' | 'leaderboard' | 'analysis' | 'arena' | 'templates'
+export type ViewName = 'dashboard' | 'eval' | 'arena' | 'system'
 
 export default function App() {
   const { view, params, navigate, setParam } = useRouter()
@@ -24,10 +19,9 @@ export default function App() {
   const [workers, setWorkers] = useState<Worker[]>([])
   const [logs, setLogs]       = useState<string[]>([])
   const [modalWorker, setModalWorker] = useState<number | null>(null)
+  const [analysisRunIds, setAnalysisRunIds] = useState<string[]>([])
+  const [evalRightTab, setEvalRightTab] = useState<'queue' | 'results'>('queue')
   const unsubRef = useRef<(() => void) | null>(null)
-
-  // selectedJobId lives in URL: /jobs?id=xxx
-  const selectedJobId = view === 'jobs' ? (params.get('id') ?? null) : null
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const refreshJobs    = useCallback(() => fetchJobs().then(setJobs), [])
@@ -55,24 +49,27 @@ export default function App() {
     )
   }, [setParam, refreshJobs, refreshResults])
 
-  // Re-attach log stream when navigating back to /jobs?id=xxx
+  // Re-attach log stream when navigating back to /eval?id=xxx
   useEffect(() => {
-    if (view === 'jobs' && selectedJobId) {
+    if (view === 'eval' && params.get('id')) {
+      const id = params.get('id')!
       unsubRef.current?.()
       unsubRef.current = streamLogs(
-        selectedJobId,
+        id,
         (line) => setLogs(prev => [...prev.slice(-500), line]),
         () => { refreshJobs(); refreshResults() },
       )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, selectedJobId])
+  }, [view, params.get('id')])
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (req: SubmitRequest) => {
     const job = await submitJob(req)
     await refreshJobs()
-    navigate('jobs', { id: job.id })
+    navigate('eval')
+    setEvalRightTab('queue')
+    selectJob(job.id)
   }
 
   const handleCancel = async (id: string) => {
@@ -85,20 +82,14 @@ export default function App() {
     await refreshJobs()
   }
 
-  // Analysis: state for pre-selected run IDs (from ResultsView)
-  const [analysisRunIds, setAnalysisRunIds] = useState<string[]>([])
-
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.key === 'n' || e.key === 'N') navigate('submit')
-      if (e.key === 'j' || e.key === 'J') navigate('jobs')
-      if (e.key === 'w' || e.key === 'W') navigate('workers')
-      if (e.key === 'l' || e.key === 'L') navigate('leaderboard')
-      if (e.key === 'a' || e.key === 'A') navigate('analysis')
-      if (e.key === 'r' || e.key === 'R') navigate('arena')
-      if (e.key === 't' || e.key === 'T') navigate('templates')
+      if (e.key === 'd' || e.key === 'D') navigate('dashboard')
+      if (e.key === 'e' || e.key === 'E') navigate('eval')
+      if (e.key === 'c' || e.key === 'C') navigate('arena')
+      if (e.key === 's' || e.key === 'S') navigate('system')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -110,15 +101,10 @@ export default function App() {
   const onlineWorkers = workers.filter(w => w.online).length
 
   const NAV: { id: ViewName; label: string; icon: string }[] = [
-    { id: 'dashboard',   label: '总览',    icon: 'fa-gauge-high' },
-    { id: 'submit',      label: '提交任务', icon: 'fa-plus' },
-    { id: 'jobs',        label: '任务队列', icon: 'fa-list-check' },
-    { id: 'results',     label: '评测结果', icon: 'fa-chart-column' },
-    { id: 'workers',     label: '集群',    icon: 'fa-server' },
-    { id: 'leaderboard', label: '榜单',    icon: 'fa-trophy' },
-    { id: 'analysis',    label: '分析',    icon: 'fa-chart-line' },
-    { id: 'arena',       label: '竞技场',  icon: 'fa-swords' },
-    { id: 'templates',   label: '模板',    icon: 'fa-file-code' },
+    { id: 'dashboard', label: '总览', icon: 'fa-gauge-high' },
+    { id: 'eval',      label: '评测', icon: 'fa-list-check' },
+    { id: 'arena',     label: '竞技', icon: 'fa-swords'     },
+    { id: 'system',    label: '系统', icon: 'fa-server'     },
   ]
 
   // ── Aggregate metrics ──────────────────────────────────────────────────────
@@ -227,34 +213,27 @@ export default function App() {
             configs={configs}
           />
         )}
-        {view === 'submit' && (
-          <SubmitView configs={configs} onSubmit={handleSubmit} />
-        )}
-        {view === 'jobs' && (
-          <JobsView
-            jobs={jobs} selectedId={selectedJobId} logs={logs}
-            onSelect={selectJob} onCancel={handleCancel}
-            onNavigate={navigate}
+        {view === 'eval' && (
+          <EvalView
+            jobs={jobs}
+            results={results}
+            configs={configs}
+            logs={logs}
+            selectedJobId={view === 'eval' ? (params.get('id') ?? null) : null}
+            onSelectJob={selectJob}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
             onReproduce={handleReproduce}
+            onNavigateAnalysis={(runIds) => { setAnalysisRunIds(runIds); navigate('arena') }}
+            rightTab={evalRightTab}
+            onRightTabChange={setEvalRightTab}
           />
         )}
-        {view === 'results' && (
-          <ResultsView results={results} onNavigateAnalysis={(runIds) => { setAnalysisRunIds(runIds); navigate('analysis') }} />
-        )}
-        {view === 'workers' && (
-          <WorkersView workers={workers} onOpenModal={setModalWorker} onRefresh={refreshWorkers} />
-        )}
-        {view === 'leaderboard' && (
-          <LeaderboardView />
-        )}
-        {view === 'analysis' && (
-          <AnalysisView initialRunIds={analysisRunIds} />
-        )}
         {view === 'arena' && (
-          <ArenaView />
+          <ArenaConsolidatedView initialAnalysisRunIds={analysisRunIds} />
         )}
-        {view === 'templates' && (
-          <TemplatesView />
+        {view === 'system' && (
+          <SystemView workers={workers} onOpenModal={setModalWorker} onRefresh={refreshWorkers} />
         )}
       </main>
 
@@ -271,13 +250,10 @@ export default function App() {
         </span>
         <span>isaaclab_arena</span>
         <div className="flex-1" />
-        <span><kbd className="kbd">N</kbd> 新建</span>
-        <span><kbd className="kbd">J</kbd> 队列</span>
-        <span><kbd className="kbd">W</kbd> 集群</span>
-        <span><kbd className="kbd">L</kbd> 榜单</span>
-        <span><kbd className="kbd">A</kbd> 分析</span>
-        <span><kbd className="kbd">R</kbd> 竞技场</span>
-        <span><kbd className="kbd">T</kbd> 模板</span>
+        <span><kbd className="kbd">D</kbd> 总览</span>
+        <span><kbd className="kbd">E</kbd> 评测</span>
+        <span><kbd className="kbd">C</kbd> 竞技</span>
+        <span><kbd className="kbd">S</kbd> 系统</span>
         <span className="text-ink-600">RoboEval · Ray + isaaclab_arena</span>
       </footer>
 
