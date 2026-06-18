@@ -47,6 +47,7 @@ class Database:
                     deployed_at TIMESTAMPTZ DEFAULT now(),
                     stopped_at TIMESTAMPTZ
                 );
+                CREATE SEQUENCE IF NOT EXISTS worker_id_seq START 0 MINVALUE 0;
             """)
 
     async def close(self) -> None:
@@ -182,12 +183,9 @@ class Database:
         return dict(row) if row else None
 
     async def next_worker_id(self) -> int:
-        """Return MAX(worker_id)+1 across all non-stopped workers, minimum 0."""
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT MAX(worker_id) AS m FROM remote_workers WHERE status != 'stopped'"
-            )
-        return (row["m"] or -1) + 1
+            row = await conn.fetchrow("SELECT nextval('worker_id_seq') AS n")
+        return row["n"]
 
 
 db = Database()

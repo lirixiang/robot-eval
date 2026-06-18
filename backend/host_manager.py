@@ -2,6 +2,7 @@
 import asyncio
 import os
 import re
+import shlex
 from datetime import datetime, timezone
 
 import paramiko
@@ -28,11 +29,20 @@ def _decrypt(ciphertext: str) -> str:
 def _ssh_run_sync(host: str, port: int, username: str,
                   password: str, cmd: str) -> str:
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.load_system_host_keys()  # load ~/.ssh/known_hosts
+    client.set_missing_host_key_policy(paramiko.RejectPolicy())
     try:
-        client.connect(host, port=port, username=username,
-                       password=password, timeout=10,
-                       look_for_keys=False, allow_agent=False)
+        try:
+            client.connect(host, port=port, username=username,
+                           password=password, timeout=10,
+                           look_for_keys=False, allow_agent=False)
+        except paramiko.ssh_exception.SSHException as e:
+            if "not found in known_hosts" in str(e) or "Server" in str(e):
+                raise RuntimeError(
+                    f"Host key for {host} not trusted. "
+                    f"Run: ssh-keyscan -H {host} >> ~/.ssh/known_hosts on the platform host"
+                ) from e
+            raise
         _, stdout, stderr = client.exec_command(cmd, timeout=30)
         out = stdout.read().decode().strip()
         err = stderr.read().decode().strip()
@@ -243,15 +253,15 @@ async def deploy_worker(host_id: int) -> dict:
         f"--gpus device={free_gpu} "
         f"--ulimit memlock=-1 --ulimit stack=67108864 "
         f"--shm-size=8g "
-        f"-e NVIDIA_VISIBLE_DEVICES={free_gpu} "
+        f"-e NVIDIA_VISIBLE_DEVICES=0 "
         f"-e NVIDIA_DRIVER_CAPABILITIES=all "
         f"-e ACCEPT_EULA=Y -e PRIVACY_CONSENT=Y "
         f"-e WORKER_ID={worker_id} "
         f"-e HTTP_PORT={http_port} "
         f"-e LIVESTREAM_PORT={livestream_port} "
-        f"-e EVAL_ACTOR_MODULE={_EVAL_ACTOR_MODULE} "
-        f"-e EVAL_ACTOR_CLASS={_EVAL_ACTOR_CLASS} "
-        f"-e EVAL_PYTHONPATH='{_EVAL_PYTHONPATH}' "
+        f"-e EVAL_ACTOR_MODULE={shlex.quote(_EVAL_ACTOR_MODULE)} "
+        f"-e EVAL_ACTOR_CLASS={shlex.quote(_EVAL_ACTOR_CLASS)} "
+        f"-e EVAL_PYTHONPATH={shlex.quote(_EVAL_PYTHONPATH)} "
         f"-v /home/disk/ssl/isaac-sim5.0/cache/ov:/root/.cache/ov "
         f"-v /home/disk/ssl/isaacsim_assets:/isaac-sim/isaacsim_assets:ro "
         f"isaaclab_arena:latest "
@@ -274,6 +284,44 @@ async def deploy_worker(host_id: int) -> dict:
     return worker_row
 
 
+async def _register_ray_actor(worker_id: int, http_port: int, livestream_port: int) -> None:
+    """Register a Ray actor for a newly running worker."""
+    import os
+    try:
+        import ray
+        from backend.base_actor import load_actor_class
+        actor_module = os.environ.get("EVAL_ACTOR_MODULE", "arena_actor")
+        actor_class  = os.environ.get("EVAL_ACTOR_CLASS",  "IsaacLabArenaActor")
+        ActorClass   = load_actor_class(actor_module, actor_class)
+        actor_name   = f"arena-worker-{worker_id}"
+        try:
+            ray.get_actor(actor_name, namespace="robot-eval")
+        except Exception:
+            _ISAAC_SIM = "/workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim"
+            ActorClass.options(
+                name=actor_name,
+                namespace="robot-eval",
+                lifetime="detached",
+                num_gpus=1,
+                runtime_env={"env_vars": {
+                    "LD_LIBRARY_PATH": ":".join([
+                        _ISAAC_SIM, f"{_ISAAC_SIM}/kit",
+                        f"{_ISAAC_SIM}/kit/kernel/plugins",
+                        f"{_ISAAC_SIM}/kit/plugins",
+                        f"{_ISAAC_SIM}/kit/plugins/carb_gfx",
+                        f"{_ISAAC_SIM}/kit/plugins/gpu.foundation",
+                    ]),
+                    "CARB_APP_PATH": f"{_ISAAC_SIM}/kit",
+                    "ISAAC_PATH":    _ISAAC_SIM,
+                    "EXP_PATH":      f"{_ISAAC_SIM}/apps",
+                    "RESOURCE_NAME": "IsaacSim",
+                    "LD_PRELOAD":    f"{_ISAAC_SIM}/kit/libcarb.so",
+                }},
+            ).remote(worker_id, http_port, livestream_port)
+    except Exception as e:
+        print(f"[host_manager] Ray actor registration failed for worker {worker_id}: {e}", flush=True)
+
+
 async def _wait_for_worker(host_row: dict, worker_id: int,
                             container_name: str, password: str) -> None:
     ssh = dict(host=host_row["host"], port=host_row["port"],
@@ -287,6 +335,9 @@ async def _wait_for_worker(host_row: dict, worker_id: int,
             )
             if out.strip() == "running":
                 await db.update_worker_status(worker_id, "running")
+                worker_row = await db.get_remote_worker(worker_id)
+                if worker_row:
+                    await _register_ray_actor(worker_id, worker_row["http_port"], worker_row["livestream_port"])
                 return
             if out.strip() in ("exited", "dead"):
                 await db.update_worker_status(worker_id, "error")
