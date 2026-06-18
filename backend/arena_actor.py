@@ -3,6 +3,7 @@ arena_actor.py — Reference EvalActor implementation using isaaclab_arena
 ...
 Actor 名称：'arena-worker-{worker_id}'，namespace='robot-eval'
 """
+from __future__ import annotations
 import json
 import os
 import sys
