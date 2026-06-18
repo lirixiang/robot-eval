@@ -514,7 +514,18 @@ async def _run_job(job_id: str, req: SubmitRequest):
         await db.update_status(job_id, "failed")
         await db.append_log(job_id, f"ERROR: {e}")
 
-# ── Serve React static build ─────────────────────────────────────────────────
+# ── Serve React static build (SPA fallback) ──────────────────────────────────
 
 if STATIC.exists():
-    app.mount("/", StaticFiles(directory=str(STATIC), html=True), name="static")
+    # Serve /assets/* directly (JS, CSS, fonts — exact file paths)
+    _assets = STATIC / "assets"
+    if _assets.exists():
+        app.mount("/assets", StaticFiles(directory=str(_assets)), name="assets")
+
+    # Catch-all: any path that isn't an /api or /sim route → index.html
+    # This makes browser-side routing (/workers, /jobs, etc.) work on direct access
+    from fastapi.responses import FileResponse as _FR
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _spa_fallback(full_path: str):
+        return _FR(str(STATIC / "index.html"))
