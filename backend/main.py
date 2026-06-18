@@ -51,6 +51,10 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("ray.unavailable", error=str(exc))
 
+    # Auto-register GPU workers from Ray cluster into remote_workers table,
+    # then start scheduler with the discovered workers.
+    await _sync_ray_workers()
+
     # Start scheduler
     from backend.engines.scheduler import JobScheduler
     from backend.engines.job_engine import JobEngine
@@ -71,6 +75,63 @@ async def lifespan(app: FastAPI):
 
     yield
     await db.close()
+
+
+async def _sync_ray_workers():
+    """Auto-register GPU worker nodes from the Ray cluster into remote_workers table.
+
+    Scans ray.nodes() for nodes with GPU resources, then upserts each into
+    remote_workers (status='running'). Ports default: http=8042+index,
+    livestream=49200+index. Called synchronously at startup after Ray connects.
+    """
+    try:
+        nodes = ray.nodes()
+    except Exception as exc:
+        logger.warning("ray.nodes_unavailable", error=str(exc))
+        return
+
+    gpu_nodes = [n for n in nodes if n.get("Alive") and n.get("Resources", {}).get("GPU", 0) >= 1]
+    if not gpu_nodes:
+        logger.info("ray.no_gpu_nodes_found")
+        return
+
+    # Ensure a local host row exists (id=1 reserved for localhost)
+    try:
+        hosts = await db.list_hosts()
+        if not hosts:
+            await db.insert_host(
+                label="local", host="127.0.0.1", port=22,
+                username="root", password_enc="none",
+            )
+            hosts = await db.list_hosts()
+        host_id = hosts[0]["id"]
+    except Exception as exc:
+        logger.warning("ray.sync_host_error", error=str(exc))
+        return
+
+    for idx, node in enumerate(gpu_nodes):
+        worker_id   = idx
+        gpu_count   = int(node["Resources"].get("GPU", 1))
+        http_port   = 8042 + idx
+        live_port   = 49200 + idx
+        cname       = f"isaac-lab-worker-{idx}"
+
+        try:
+            existing = await db.get_remote_worker(worker_id)
+            if existing:
+                await db.update_worker_status(worker_id, "running")
+                logger.info("ray.worker_updated", worker_id=worker_id)
+            else:
+                await db.insert_remote_worker(
+                    host_id=host_id, worker_id=worker_id,
+                    gpu_index=idx, http_port=http_port,
+                    livestream_port=live_port, container_name=cname,
+                )
+                logger.info("ray.worker_registered", worker_id=worker_id, cname=cname)
+        except Exception as exc:
+            logger.warning("ray.worker_sync_error", worker_id=worker_id, error=str(exc))
+
+    logger.info("ray.workers_synced", count=len(gpu_nodes))
 
 
 async def _get_workers_meta() -> list[dict]:

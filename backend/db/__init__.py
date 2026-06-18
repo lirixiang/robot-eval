@@ -16,10 +16,25 @@ class Database:
 
     # ── Hosts ─────────────────────────────────────────────────────────────────
 
+    async def list_hosts(self) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM hosts ORDER BY id")
+        return [dict(r) for r in rows]
+
     async def get_host(self, host_id: int) -> Optional[dict]:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM hosts WHERE id=$1", host_id)
         return dict(row) if row else None
+
+    async def insert_host(self, label: str, host: str, port: int,
+                          username: str, password_enc: str) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """INSERT INTO hosts (label, host, port, username, password_enc)
+                   VALUES ($1,$2,$3,$4,$5) RETURNING *""",
+                label, host, port, username, password_enc,
+            )
+        return dict(row)
 
     # ── Remote workers ────────────────────────────────────────────────────────
 
@@ -45,6 +60,32 @@ class Database:
                 "SELECT * FROM remote_workers WHERE worker_id=$1", worker_id
             )
         return dict(row) if row else None
+
+    async def insert_remote_worker(self, host_id: int, worker_id: int,
+                                   gpu_index: int, http_port: int,
+                                   livestream_port: int,
+                                   container_name: str) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """INSERT INTO remote_workers
+                   (host_id, worker_id, gpu_index, http_port, livestream_port, container_name)
+                   VALUES ($1,$2,$3,$4,$5,$6) RETURNING *""",
+                host_id, worker_id, gpu_index, http_port, livestream_port, container_name,
+            )
+        return dict(row)
+
+    async def update_worker_status(self, worker_id: int, status: str) -> None:
+        async with self.pool.acquire() as conn:
+            if status == "stopped":
+                await conn.execute(
+                    "UPDATE remote_workers SET status=$1, stopped_at=now() WHERE worker_id=$2",
+                    status, worker_id,
+                )
+            else:
+                await conn.execute(
+                    "UPDATE remote_workers SET status=$1 WHERE worker_id=$2",
+                    status, worker_id,
+                )
 
 
 db = Database()
