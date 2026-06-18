@@ -30,3 +30,12 @@ async def list_templates(pool: asyncpg.Pool) -> list[dict]:
 async def delete_template(pool: asyncpg.Pool, template_id: int) -> None:
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM templates WHERE id=$1", template_id)
+
+async def get_template_by_name_version(
+    pool: asyncpg.Pool, name: str, version: str
+) -> dict | None:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM templates WHERE name=$1 AND version=$2", name, version
+        )
+    return dict(row) if row else None
