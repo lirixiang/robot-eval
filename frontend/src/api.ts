@@ -100,3 +100,15 @@ export async function deployWorker(hostId: number): Promise<RemoteWorker> {
 export async function destroyWorker(hostId: number, workerId: number): Promise<void> {
   await fetch(`${BASE}/hosts/${hostId}/workers/${workerId}`, { method: 'DELETE' })
 }
+
+export interface RayStatus {
+  online: boolean; nodes: number
+  cpu_total: number; cpu_used: number
+  gpu_total: number; gpu_used: number
+  mem_total_gb: number
+}
+
+export async function fetchRayStatus(): Promise<RayStatus> {
+  const r = await fetch(`${BASE}/ray/status`)
+  return r.json()
+}

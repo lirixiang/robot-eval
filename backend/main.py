@@ -176,6 +176,29 @@ async def system_info():
         "gpu_count": gpu_count,
     }
 
+# ── Ray cluster status ────────────────────────────────────────────────────────
+
+@app.get("/api/ray/status")
+async def ray_status():
+    """Return live Ray cluster stats directly from the Ray API."""
+    try:
+        cluster = ray.cluster_resources()
+        available = ray.available_resources()
+        nodes = ray.nodes()
+        alive_nodes = [n for n in nodes if n.get("Alive", False)]
+        return {
+            "online":      True,
+            "nodes":       len(alive_nodes),
+            "cpu_total":   int(cluster.get("CPU", 0)),
+            "cpu_used":    int(cluster.get("CPU", 0) - available.get("CPU", 0)),
+            "gpu_total":   int(cluster.get("GPU", 0)),
+            "gpu_used":    int(cluster.get("GPU", 0) - available.get("GPU", 0)),
+            "mem_total_gb": round(cluster.get("memory", 0) / 1024**3, 1),
+        }
+    except Exception as e:
+        return {"online": False, "nodes": 0, "cpu_total": 0, "cpu_used": 0,
+                "gpu_total": 0, "gpu_used": 0, "mem_total_gb": 0, "error": str(e)}
+
 # ── Workers API ───────────────────────────────────────────────────────────────
 
 @app.get("/api/workers")

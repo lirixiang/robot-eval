@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Worker } from '../types'
-import { destroyWorker } from '../api'
+import { destroyWorker, fetchRayStatus, type RayStatus } from '../api'
 import HostsPanel from './HostsPanel'
 
 interface Props {
@@ -22,6 +22,17 @@ function useSystemInfo(): SystemInfo {
       .catch(() => {})
   }, [])
   return info
+}
+
+function useRayStatus() {
+  const [ray, setRay] = useState<RayStatus | null>(null)
+  useEffect(() => {
+    const fetch_ = () => fetchRayStatus().then(setRay).catch(() => {})
+    fetch_()
+    const t = setInterval(fetch_, 5000)
+    return () => clearInterval(t)
+  }, [])
+  return ray
 }
 
 function SimPlaceholder({ online }: { online: boolean }) {
@@ -54,6 +65,7 @@ function SimPlaceholder({ online }: { online: boolean }) {
 export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) {
   const anyOnline = workers.some(w => w.online)
   const sys        = useSystemInfo()
+  const rayStatus  = useRayStatus()
 
   const dockerCmd = `docker run -d --runtime=nvidia --network=host \\
   --gpus='"device=1"' \\
@@ -70,8 +82,8 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
       <div className="form-section">
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <span className="tag text-ink-400">Ray 集群</span>
-          <span className={`chip ${anyOnline ? 'chip-run' : 'chip-fail'}`}>
-            {anyOnline ? '在线' : '离线'}
+          <span className={`chip ${rayStatus?.online ? 'chip-run' : 'chip-fail'}`}>
+            {rayStatus?.online ? '在线' : rayStatus === null ? '查询中...' : '离线'}
           </span>
           <span className="font-mono text-[11px] text-ink-500">{sys.local_ip}:8265</span>
           <a href={`http://${sys.local_ip}:8265`} target="_blank" rel="noreferrer" className="btn-sm">
@@ -80,10 +92,10 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
         </div>
         <div className="grid grid-cols-4 gap-3">
           {[
-            { label: '节点数', value: String(workers.length),                    icon: 'fa-server' },
-            { label: 'CPU 核', value: sys.cpu_count ? String(sys.cpu_count) : '—', icon: 'fa-microchip' },
-            { label: 'GPU 数', value: sys.gpu_count ? String(sys.gpu_count) : String(workers.filter(w => w.online).length), icon: 'fa-gpu' },
-            { label: '内存',   value: sys.mem_gb    ? `${sys.mem_gb} GB` : '—',   icon: 'fa-memory' },
+            { label: '节点数', value: rayStatus ? String(rayStatus.nodes) : '—',                         icon: 'fa-server' },
+            { label: 'CPU 核', value: rayStatus ? `${rayStatus.cpu_used}/${rayStatus.cpu_total}` : '—',  icon: 'fa-microchip' },
+            { label: 'GPU 数', value: rayStatus ? `${rayStatus.gpu_used}/${rayStatus.gpu_total}` : '—',  icon: 'fa-gpu' },
+            { label: '内存',   value: rayStatus ? `${rayStatus.mem_total_gb} GB` : '—',                  icon: 'fa-memory' },
           ].map(s => (
             <div key={s.label} className="bg-ink-950 rounded-lg p-3 border border-ink-800">
               <div className="flex items-center gap-1.5 text-ink-500 text-[10px] mb-1">
