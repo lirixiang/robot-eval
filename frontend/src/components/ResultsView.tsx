@@ -1,7 +1,13 @@
+import React, { useState } from 'react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
 import type { JobResult } from '../types'
+import { fetchRun } from '../api'
+import type { Run } from '../types'
 
-interface Props { results: JobResult[] }
+interface Props {
+  results: JobResult[]
+  onNavigateAnalysis?: (runIds: string[]) => void
+}
 
 function exportCSV(results: JobResult[]) {
   const header = ['job_id', 'environment', 'robot', 'num_episodes', 'success_count', 'success_rate', 'avg_cycle_s', 'uph', 'theoretical_uph', 'status', 'timestamp']
@@ -25,7 +31,35 @@ function exportCSV(results: JobResult[]) {
   a.click()
 }
 
-export default function ResultsView({ results }: Props) {
+export default function ResultsView({ results, onNavigateAnalysis }: Props) {
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [runCache, setRunCache] = useState<Record<string, Run>>({})
+
+  const toggleSelect = (jobId: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(jobId) ? next.delete(jobId) : next.add(jobId)
+      return next
+    })
+  }
+
+  const toggleExpand = async (jobId: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.has(jobId) ? next.delete(jobId) : next.add(jobId)
+      return next
+    })
+    // Lazily load run with episodes if not cached
+    if (!runCache[jobId]) {
+      try {
+        const run = await fetchRun(jobId)
+        setRunCache(prev => ({ ...prev, [jobId]: run }))
+      } catch {
+        // ignore
+      }
+    }
+  }
   const validResults = results.filter(r => r.metrics)
   const totalJobs = validResults.length
   const avgSr = totalJobs ? validResults.reduce((s, r) => s + (r.metrics.success_rate ?? 0), 0) / totalJobs : 0
@@ -114,40 +148,81 @@ export default function ResultsView({ results }: Props) {
       <div className="form-section p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-800">
           <span className="tag text-ink-400">完整结果</span>
-          <button className="btn-sm" onClick={() => exportCSV(results)}>
-            <i className="fas fa-download mr-1" />导出 CSV
-          </button>
+          <div className="flex items-center gap-2">
+            {selected.size > 0 && onNavigateAnalysis && (
+              <button className="btn-sm" style={{ color: '#86efac', borderColor: 'rgba(34,197,94,.3)' }}
+                      onClick={() => onNavigateAnalysis(Array.from(selected))}>
+                <i className="fas fa-chart-line mr-1" />比较选中 ({selected.size})
+              </button>
+            )}
+            <button className="btn-sm" onClick={() => exportCSV(results)}>
+              <i className="fas fa-download mr-1" />导出 CSV
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="thead-sticky border-b border-ink-800">
-                {['Job ID', '环境', '机器人', '轮次', '成功', '成功率', 'avg_cycle(s)', 'UPH', '理论UPH', '状态', '时间'].map(h => (
+                <th className="text-left text-ink-500 font-normal px-3 py-2 w-8"></th>
+                {['Job ID', '环境', '机器人', '轮次', '成功', '成功率', 'avg_cycle(s)', 'UPH', '理论UPH', '状态', '时间', ''].map(h => (
                   <th key={h} className="text-left text-ink-500 font-normal px-3 py-2 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {results.length === 0 && (
-                <tr><td colSpan={11} className="text-center text-ink-600 py-10">暂无结果</td></tr>
+                <tr><td colSpan={13} className="text-center text-ink-600 py-10">暂无结果</td></tr>
               )}
               {[...validResults].reverse().map(r => {
                 const m = r.metrics
                 const tUph = m.theoretical_max_uph ?? (m.avg_cycle_s > 0 ? 3600 / m.avg_cycle_s : 0)
+                const isExpanded = expanded.has(r.job_id)
+                const run = runCache[r.job_id]
                 return (
-                  <tr key={r.job_id} className="row-hover border-b border-ink-800/50">
-                    <td className="px-3 py-2 font-mono text-gold">{r.job_id.slice(0, 8)}</td>
-                    <td className="px-3 py-2 text-ink-300 max-w-[140px] truncate">{String(r.job.arena_env_args?.environment ?? '–')}</td>
-                    <td className="px-3 py-2 text-ink-300">{String(r.job.policy_config?.robot ?? '–')}</td>
-                    <td className="px-3 py-2 num text-ink-400">{r.job.num_episodes ?? '–'}</td>
-                    <td className="px-3 py-2 num text-ink-400">{m.success_count ?? '–'}</td>
-                    <td className="px-3 py-2 num text-success">{((m.success_rate ?? 0) * 100).toFixed(1)}%</td>
-                    <td className="px-3 py-2 num text-ink-300">{(m.avg_cycle_s ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 num text-gold">{(m.uph ?? 0).toFixed(1)}</td>
-                    <td className="px-3 py-2 num text-ink-400">{tUph.toFixed(1)}</td>
-                    <td className="px-3 py-2"><span className="chip chip-done">done</span></td>
-                    <td className="px-3 py-2 text-ink-500 whitespace-nowrap">{new Date(r.timestamp * 1000).toLocaleString('zh-CN')}</td>
-                  </tr>
+                  <React.Fragment key={r.job_id}>
+                    <tr key={r.job_id} className="row-hover border-b border-ink-800/50">
+                      <td className="px-3 py-2">
+                        <input type="checkbox" checked={selected.has(r.job_id)}
+                               onChange={() => toggleSelect(r.job_id)}
+                               className="accent-green-500 cursor-pointer" />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-gold">{r.job_id.slice(0, 8)}</td>
+                      <td className="px-3 py-2 text-ink-300 max-w-[140px] truncate">{String(r.job.arena_env_args?.environment ?? '–')}</td>
+                      <td className="px-3 py-2 text-ink-300">{String(r.job.policy_config?.robot ?? '–')}</td>
+                      <td className="px-3 py-2 num text-ink-400">{r.job.num_episodes ?? '–'}</td>
+                      <td className="px-3 py-2 num text-ink-400">{m.success_count ?? '–'}</td>
+                      <td className="px-3 py-2 num text-success">{((m.success_rate ?? 0) * 100).toFixed(1)}%</td>
+                      <td className="px-3 py-2 num text-ink-300">{(m.avg_cycle_s ?? 0).toFixed(2)}</td>
+                      <td className="px-3 py-2 num text-gold">{(m.uph ?? 0).toFixed(1)}</td>
+                      <td className="px-3 py-2 num text-ink-400">{tUph.toFixed(1)}</td>
+                      <td className="px-3 py-2"><span className="chip chip-done">done</span></td>
+                      <td className="px-3 py-2 text-ink-500 whitespace-nowrap">{new Date(r.timestamp * 1000).toLocaleString('zh-CN')}</td>
+                      <td className="px-3 py-2">
+                        <button className="btn-sm text-[10px]" onClick={() => toggleExpand(r.job_id)}>
+                          {isExpanded ? '收起' : '单集'}
+                        </button>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${r.job_id}-episodes`} className="border-b border-ink-800/50">
+                        <td colSpan={13} className="bg-ink-950 px-4 py-2">
+                          {run?.episodes && run.episodes.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 p-3">
+                              {run.episodes.map((ep, i) => (
+                                <div key={i}
+                                     title={`#${ep.episode_index}: ${ep.success ? '✓' : '✗'} (${ep.termination_reason})`}
+                                     className={`w-4 h-4 rounded-sm ${ep.success ? 'bg-green-500' : 'bg-red-500/60'}`}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-ink-600 text-xs py-2 px-3">暂无单集数据</div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 )
               })}
             </tbody>

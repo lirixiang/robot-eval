@@ -22,8 +22,8 @@ function LogLine({ line }: { line: string }) {
 }
 
 function statusChip(status: Job['status']) {
-  const m: Record<Job['status'], string> = { running: 'chip-run', done: 'chip-done', failed: 'chip-fail', pending: 'chip-pend', cancelled: 'chip' }
-  return <span className={`chip ${m[status]}`}>{status}</span>
+  const m: Record<string, string> = { running: 'chip-run', done: 'chip-done', failed: 'chip-fail', failed_final: 'chip-fail', pending: 'chip-pend', cancelled: 'chip', retry_pending: 'chip-pend' }
+  return <span className={`chip ${m[status] ?? 'chip'}`}>{status}</span>
 }
 
 export default function DashboardView({ jobs, results, workers, activeJob, logs, onSelectJob, onOpenModal, onNavigate, onQuickSubmit, configs }: Props) {

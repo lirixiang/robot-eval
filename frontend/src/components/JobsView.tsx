@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Job } from '../types'
 import type { ViewName } from '../App'
+import { setBaseline, reproduceJob } from '../api'
 
 interface Props {
   jobs: Job[]
@@ -9,12 +10,14 @@ interface Props {
   onSelect: (id: string) => void
   onCancel: (id: string) => void
   onNavigate: (v: ViewName) => void
+  onReproduce?: (jobId: string) => Promise<void>
 }
 
 type Filter = 'all' | 'running' | 'done' | 'failed'
 
-const STATUS_CHIP: Record<Job['status'], string> = {
-  running: 'chip-run', done: 'chip-done', failed: 'chip-fail', pending: 'chip-pend', cancelled: 'chip'
+const STATUS_CHIP: Record<string, string> = {
+  running: 'chip-run', done: 'chip-done', failed: 'chip-fail', failed_final: 'chip-fail',
+  pending: 'chip-pend', cancelled: 'chip', retry_pending: 'chip-pend',
 }
 
 function LogLine({ line }: { line: string }) {
@@ -22,7 +25,7 @@ function LogLine({ line }: { line: string }) {
   return <div className={`${cls} leading-5`}>{line}</div>
 }
 
-export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, onNavigate }: Props) {
+export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, onNavigate, onReproduce }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const logEndRef = useRef<HTMLDivElement>(null)
 
@@ -34,9 +37,9 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
 
   const filtered = jobs.filter(j => {
     if (filter === 'all') return true
-    if (filter === 'running') return j.status === 'running' || j.status === 'pending'
+    if (filter === 'running') return j.status === 'running' || j.status === 'pending' || j.status === 'retry_pending'
     if (filter === 'done') return j.status === 'done'
-    if (filter === 'failed') return j.status === 'failed' || j.status === 'cancelled'
+    if (filter === 'failed') return j.status === 'failed' || j.status === 'failed_final' || j.status === 'cancelled'
     return true
   })
 
@@ -86,8 +89,8 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
               {filtered.map(job => {
                 const isActive = job.id === selectedId
                 const m = job.result?.metrics
-                const envStr = String(job.config.arena_env_args?.environment ?? '–')
-                const robotStr = String(job.config.policy_config?.robot ?? '–')
+                const envStr = job.model_name ?? String(job.config?.arena_env_args?.environment ?? '–')
+                const robotStr = String(job.config?.policy_config?.robot ?? '–')
                 return (
                   <tr key={job.id}
                       className={`row-hover border-b border-ink-800/50 cursor-pointer ${isActive ? 'bg-[#0d1017]' : ''}`}
@@ -97,26 +100,39 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
                       <div className="text-ink-200 truncate max-w-[120px]">{envStr}</div>
                       <div className="text-[10px] text-ink-500">{robotStr}</div>
                     </td>
-                    <td className="px-3 py-2"><span className="chip chip-env">{job.config.policy_type}</span></td>
+                    <td className="px-3 py-2"><span className="chip chip-env">{job.config?.policy_type ?? job.submitter ?? '–'}</span></td>
                     <td className="px-3 py-2 w-24">
                       {job.status === 'running' ? (
                         <div className="level-bar h-1.5">
                           <div className="level-fill progress-run" style={{ width: '60%' }} />
                         </div>
                       ) : m ? (
-                        <span className="num text-ink-300">{m.success_count ?? '–'}/{m.total_episodes ?? job.config.num_episodes ?? '–'}</span>
+                        <span className="num text-ink-300">{m.success_count ?? '–'}/{m.total_episodes ?? job.config?.num_episodes ?? '–'}</span>
                       ) : <span className="text-ink-600">–</span>}
                     </td>
                     <td className="px-3 py-2 num">{m ? <span className="text-success">{(m.success_rate * 100).toFixed(1)}%</span> : '–'}</td>
                     <td className="px-3 py-2 num text-gold">{m ? m.uph.toFixed(1) : '–'}</td>
                     <td className="px-3 py-2 num text-ink-300">{job.result ? job.result.elapsed_s.toFixed(1) : '–'}</td>
-                    <td className="px-3 py-2"><span className={`chip ${STATUS_CHIP[job.status]}`}>{job.status}</span></td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className={`chip ${STATUS_CHIP[job.status] ?? 'chip'}`}>{job.status}</span>
+                        {job.retry_count != null && job.retry_count > 0 && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-400 border border-red-800/40">
+                            重试 {job.retry_count}/{job.max_retries ?? 3}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <button className="btn-sm" onClick={e => { e.stopPropagation(); onSelect(job.id) }}>日志</button>
                         {(job.status === 'running' || job.status === 'pending') && (
                           <button className="btn-sm" style={{ color: '#fca5a5', borderColor: 'rgba(239,68,68,.3)' }}
                                   onClick={e => { e.stopPropagation(); onCancel(job.id) }}>×</button>
+                        )}
+                        {(job.status === 'failed_final' || job.status === 'failed') && onReproduce && (
+                          <button className="btn-sm" style={{ color: '#86efac', borderColor: 'rgba(34,197,94,.3)' }}
+                                  onClick={e => { e.stopPropagation(); onReproduce(job.id) }}>复现</button>
                         )}
                       </div>
                     </td>
@@ -139,17 +155,24 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
           <>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="font-mono text-gold text-sm">{selectedJob.id.slice(0, 16)}…</span>
-              <span className={`chip ${STATUS_CHIP[selectedJob.status]}`}>{selectedJob.status}</span>
+              <div className="flex items-center gap-1.5">
+                <span className={`chip ${STATUS_CHIP[selectedJob.status] ?? 'chip'}`}>{selectedJob.status}</span>
+                {selectedJob.retry_count != null && selectedJob.retry_count > 0 && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-400 border border-red-800/40">
+                    重试 {selectedJob.retry_count}/{selectedJob.max_retries ?? 3}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="form-section space-y-1.5">
               <div className="tag text-ink-500 mb-1">任务配置</div>
               {[
-                ['环境', String(selectedJob.config.arena_env_args?.environment ?? '–')],
-                ['机器人', String(selectedJob.config.policy_config?.robot ?? '–')],
-                ['策略', selectedJob.config.policy_type],
-                ['并发', String(selectedJob.config.num_envs)],
-                ['轮次', String(selectedJob.config.num_episodes ?? '–')],
+                ['环境', String(selectedJob.config?.arena_env_args?.environment ?? selectedJob.model_name ?? '–')],
+                ['机器人', String(selectedJob.config?.policy_config?.robot ?? '–')],
+                ['策略', selectedJob.config?.policy_type ?? selectedJob.submitter ?? '–'],
+                ['并发', String(selectedJob.config?.num_envs ?? '–')],
+                ['轮次', String(selectedJob.config?.num_episodes ?? '–')],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between text-xs">
                   <span className="text-ink-500">{k}</span>
@@ -174,6 +197,19 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
                     </div>
                   ))}
                 </div>
+                {selectedJob.latest_run && (
+                  <button
+                    className="mt-2 btn-sm w-full text-center"
+                    style={{ color: '#86efac', borderColor: 'rgba(34,197,94,.3)' }}
+                    onClick={() => {
+                      if (confirm('将此 Run 设为基准？')) {
+                        setBaseline(selectedJob.latest_run!.id)
+                      }
+                    }}
+                  >
+                    设为基准
+                  </button>
+                )}
               </div>
             )}
 

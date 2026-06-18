@@ -1,4 +1,4 @@
-import type { Job, SubmitRequest, Configs, Worker, JobResult, Leaderboard, Host, HostStatus, RemoteWorker, AddHostRequest } from './types'
+import type { Job, SubmitRequest, Configs, Worker, JobResult, Leaderboard, Host, HostStatus, RemoteWorker, AddHostRequest, Run, AnalysisCompare, TrendPoint, Template } from './types'
 
 const BASE = '/api'
 
@@ -110,5 +110,36 @@ export interface RayStatus {
 
 export async function fetchRayStatus(): Promise<RayStatus> {
   const r = await fetch(`${BASE}/ray/status`)
+  return r.json()
+}
+
+// ── Phase 2: Runs, Analysis, Templates ───────────────────────────────────────
+
+export async function fetchRun(id: string): Promise<Run> {
+  const r = await fetch(`${BASE}/runs/${id}`)
+  return r.json()
+}
+
+export async function setBaseline(runId: string): Promise<void> {
+  await fetch(`${BASE}/runs/${runId}/set-baseline`, { method: 'PUT' })
+}
+
+export async function reproduceJob(jobId: string): Promise<Job> {
+  const r = await fetch(`${BASE}/jobs/${jobId}/reproduce`, { method: 'POST' })
+  return r.json()
+}
+
+export async function fetchCompare(runIds: string[]): Promise<AnalysisCompare> {
+  const r = await fetch(`${BASE}/analysis/compare?runs=${runIds.join(',')}`)
+  return r.json()
+}
+
+export async function fetchTrend(model: string, env: string, days = 30): Promise<TrendPoint[]> {
+  const r = await fetch(`${BASE}/analysis/trend?model=${encodeURIComponent(model)}&env=${encodeURIComponent(env)}&days=${days}`)
+  return r.json()
+}
+
+export async function fetchTemplates(): Promise<Template[]> {
+  const r = await fetch(`${BASE}/templates`)
   return r.json()
 }

@@ -18,6 +18,7 @@ const VIEW_PATH: Record<ViewName, string> = {
   results:     '/results',
   workers:     '/workers',
   leaderboard: '/leaderboard',
+  analysis:    '/analysis',
 }
 
 function currentView(): ViewName {

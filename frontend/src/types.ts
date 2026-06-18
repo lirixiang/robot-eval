@@ -14,14 +14,76 @@ export interface SubmitRequest {
   description:       string
 }
 
+// ── Run (a single attempt for a job) ──────────────────────────────────────────
+export interface Run {
+  id:          string
+  job_id:      string
+  attempt:     number
+  worker_id:   number | null
+  status:      'pending' | 'running' | 'done' | 'failed'
+  metrics:     Record<string, number>
+  seed:        number | null
+  elapsed_s:   number | null
+  error_msg:   string | null
+  started_at:  number | null
+  finished_at: number | null
+  episodes?:   Episode[]
+}
+
+// ── Episode (per-episode result) ───────────────────────────────────────────────
+export interface Episode {
+  id:                 number
+  run_id:             string
+  episode_index:      number
+  success:            boolean
+  reward_total:       number
+  steps:              number
+  termination_reason: string
+  metadata:           Record<string, unknown>
+}
+
+// ── Template ───────────────────────────────────────────────────────────────────
+export interface Template {
+  id:          number
+  name:        string
+  version:     string
+  runner_type: string
+  config_yaml: string
+  description: string | null
+  created_at:  string
+}
+
+// ── Analysis ───────────────────────────────────────────────────────────────────
+export interface AnalysisCompare {
+  runs: { id: string; job_id: string; metrics: Record<string, number>; finished_at: number | null }[]
+  metrics: Record<string, Record<string, number | string>>
+  episodes: ({ index: number } & Record<string, boolean>)[]
+}
+
+export interface TrendPoint {
+  run_id:       string
+  job_id:       string
+  finished_at:  number
+  success_rate: number
+  uph:          number
+  model_name:   string
+  env_name:     string
+}
+
 // ── Job (stored in DB, returned from /api/jobs) ────────────────────────────────
 export interface Job {
-  id:         string
-  status:     'pending' | 'running' | 'done' | 'failed' | 'cancelled'
-  config:     SubmitRequest
-  created_at: number
-  updated_at: number
-  result?:    JobResult
+  id:           string
+  name?:        string
+  status:       'pending' | 'running' | 'done' | 'failed_final' | 'failed' | 'cancelled' | 'retry_pending'
+  config?:      SubmitRequest   // old shape (kept for compat)
+  retry_count?: number
+  max_retries?: number
+  model_name?:  string
+  submitter?:   string
+  latest_run?:  Run
+  created_at:   number
+  updated_at:   number
+  result?:      JobResult
 }
 
 export interface JobResult {

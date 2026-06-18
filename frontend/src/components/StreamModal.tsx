@@ -59,11 +59,11 @@ export default function StreamModal({ workerId, worker, activeJob, onClose }: Pr
               <span className="text-ink-500">任务</span>
               <span className="num text-gold">{activeJob.id}</span>
               <span className="text-ink-500">环境</span>
-              <span className="text-sky2">{String(activeJob.config.arena_env_args?.environment ?? '—')}</span>
+              <span className="text-sky2">{String(activeJob.config?.arena_env_args?.environment ?? '—')}</span>
               <span className="text-ink-500">机器人</span>
-              <span className="text-ink-200">{String(activeJob.config.arena_env_args?.embodiment ?? '—')}</span>
+              <span className="text-ink-200">{String(activeJob.config?.arena_env_args?.embodiment ?? '—')}</span>
               <span className="text-ink-500">策略</span>
-              <span className="text-ink-200">{activeJob.config.policy_type}</span>
+              <span className="text-ink-200">{activeJob.config?.policy_type ?? activeJob.model_name ?? '—'}</span>
             </>
           ) : (
             <span className="text-ink-500">无运行中任务</span>

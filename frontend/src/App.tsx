@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { fetchJobs, fetchConfigs, fetchResults, fetchWorkers, submitJob, cancelJob, streamLogs } from './api'
+import { fetchJobs, fetchConfigs, fetchResults, fetchWorkers, submitJob, cancelJob, streamLogs, reproduceJob } from './api'
 import type { Job, JobResult, Worker, Configs, SubmitRequest } from './types'
 import { useRouter } from './useRouter'
 import DashboardView  from './components/DashboardView'
@@ -9,8 +9,9 @@ import ResultsView    from './components/ResultsView'
 import WorkersView    from './components/WorkersView'
 import StreamModal    from './components/StreamModal'
 import LeaderboardView from './components/LeaderboardView'
+import AnalysisView   from './components/AnalysisView'
 
-export type ViewName = 'dashboard' | 'submit' | 'jobs' | 'results' | 'workers' | 'leaderboard'
+export type ViewName = 'dashboard' | 'submit' | 'jobs' | 'results' | 'workers' | 'leaderboard' | 'analysis'
 
 export default function App() {
   const { view, params, navigate, setParam } = useRouter()
@@ -77,6 +78,14 @@ export default function App() {
     refreshJobs()
   }
 
+  const handleReproduce = async (jobId: string) => {
+    await reproduceJob(jobId)
+    await refreshJobs()
+  }
+
+  // Analysis: state for pre-selected run IDs (from ResultsView)
+  const [analysisRunIds, setAnalysisRunIds] = useState<string[]>([])
+
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -85,6 +94,7 @@ export default function App() {
       if (e.key === 'j' || e.key === 'J') navigate('jobs')
       if (e.key === 'w' || e.key === 'W') navigate('workers')
       if (e.key === 'l' || e.key === 'L') navigate('leaderboard')
+      if (e.key === 'a' || e.key === 'A') navigate('analysis')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -102,6 +112,7 @@ export default function App() {
     { id: 'results',     label: '评测结果', icon: 'fa-chart-column' },
     { id: 'workers',     label: '集群',    icon: 'fa-server' },
     { id: 'leaderboard', label: '榜单',    icon: 'fa-trophy' },
+    { id: 'analysis',    label: '分析',    icon: 'fa-chart-line' },
   ]
 
   // ── Aggregate metrics ──────────────────────────────────────────────────────
@@ -218,16 +229,20 @@ export default function App() {
             jobs={jobs} selectedId={selectedJobId} logs={logs}
             onSelect={selectJob} onCancel={handleCancel}
             onNavigate={navigate}
+            onReproduce={handleReproduce}
           />
         )}
         {view === 'results' && (
-          <ResultsView results={results} />
+          <ResultsView results={results} onNavigateAnalysis={(runIds) => { setAnalysisRunIds(runIds); navigate('analysis') }} />
         )}
         {view === 'workers' && (
           <WorkersView workers={workers} onOpenModal={setModalWorker} onRefresh={refreshWorkers} />
         )}
         {view === 'leaderboard' && (
           <LeaderboardView />
+        )}
+        {view === 'analysis' && (
+          <AnalysisView initialRunIds={analysisRunIds} />
         )}
       </main>
 
@@ -248,6 +263,7 @@ export default function App() {
         <span><kbd className="kbd">J</kbd> 队列</span>
         <span><kbd className="kbd">W</kbd> 集群</span>
         <span><kbd className="kbd">L</kbd> 榜单</span>
+        <span><kbd className="kbd">A</kbd> 分析</span>
         <span className="text-ink-600">RoboEval · Ray + isaaclab_arena</span>
       </footer>
 
