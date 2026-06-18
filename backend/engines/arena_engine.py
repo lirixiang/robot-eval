@@ -36,7 +36,7 @@ class ArenaEngine:
     ) -> dict:
         """Create a match and dispatch two eval jobs (one per model)."""
         match_id  = uuid.uuid4().hex[:8]
-        match_seed = seed or random.randint(0, 2**31)
+        match_seed = seed if seed is not None else random.randint(0, 2**31)
         jcfg = judge_config or _DEFAULT_JUDGE
 
         match = await mq.create_match(
@@ -107,10 +107,8 @@ class ArenaEngine:
             winner = None
 
             if run_a and run_b and run_a["status"] == "done" and run_b["status"] == "done":
-                if run_a:
-                    await mq.set_match_run(self._pool, match_id, "a", run_a["id"])
-                if run_b:
-                    await mq.set_match_run(self._pool, match_id, "b", run_b["id"])
+                await mq.set_match_run(self._pool, match_id, "a", run_a["id"])
+                await mq.set_match_run(self._pool, match_id, "b", run_b["id"])
 
                 winner = _judge(
                     run_a["metrics"] or {}, run_b["metrics"] or {},
