@@ -1,9 +1,6 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
-import httpx
+from fastapi import APIRouter, HTTPException
 from backend.db import db
-from backend.db.queries.jobs import append_log
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
 

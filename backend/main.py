@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.db import db, init_db
-from backend.db.schema import create_tables
 from backend.base_actor import load_actor_class
 
 logger = logging.getLogger(__name__)
@@ -66,12 +65,19 @@ async def lifespan(app: FastAPI):
 async def _get_workers_meta() -> list[dict]:
     try:
         rows = await db.list_remote_workers(status="running")
-        return [{"worker_id": r["worker_id"],
-                 "actor_name": f"arena-worker-{r['worker_id']}"}
-                for r in rows]
+        return [
+            {
+                "worker_id":       r["worker_id"],
+                "actor_name":      f"arena-worker-{r['worker_id']}",
+                "http_port":       r["http_port"],
+                "livestream_port": r["livestream_port"],
+            }
+            for r in rows
+        ]
     except Exception:
         # Fallback for first-run before any workers are registered
-        return [{"worker_id": 0, "actor_name": "arena-worker-0"}]
+        return [{"worker_id": 0, "actor_name": "arena-worker-0",
+                 "http_port": 8042, "livestream_port": 49200}]
 
 
 async def _create_actors():
@@ -87,7 +93,8 @@ async def _create_actors():
     try:
         workers = await _get_workers_meta()
     except Exception:
-        workers = [{"worker_id": 0, "actor_name": "arena-worker-0"}]
+        workers = [{"worker_id": 0, "actor_name": "arena-worker-0",
+                    "http_port": 8042, "livestream_port": 49200}]
 
     for w in workers:
         name = w["actor_name"]
@@ -100,7 +107,7 @@ async def _create_actors():
                 name=name, namespace="robot-eval",
                 lifetime="detached", num_gpus=1,
                 runtime_env=runtime_env,
-            ).remote(w["worker_id"])
+            ).remote(w["worker_id"], w.get("http_port", 8042), w.get("livestream_port", 49200))
 
 
 app = FastAPI(title="Robot Eval Platform v2", lifespan=lifespan)

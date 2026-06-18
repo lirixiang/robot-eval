@@ -1,5 +1,5 @@
 from __future__ import annotations
-import asyncio, json, time
+import asyncio, json
 from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -74,6 +74,10 @@ async def get_regression(job_id: str):
 
 @router.get("/{job_id}/logs")
 async def stream_logs(job_id: str):
+    job = await jq.get_job(db.pool, job_id)
+    if not job:
+        raise HTTPException(404, f"Job {job_id} not found")
+
     async def generator():
         sent = 0
         while True:
@@ -81,10 +85,12 @@ async def stream_logs(job_id: str):
             for line in lines[sent:]:
                 yield f"data: {json.dumps(line)}\n\n"
                 sent += 1
-            job = await jq.get_job(db.pool, job_id)
-            if job and job["status"] in ("done", "failed_final", "cancelled"):
+            current_job = await jq.get_job(db.pool, job_id)
+            if current_job and current_job["status"] in ("done", "failed_final", "cancelled"):
                 yield "data: __END__\n\n"
                 break
             await asyncio.sleep(0.5)
+
     return StreamingResponse(generator(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache"})
+                             headers={"Cache-Control": "no-cache",
+                                      "X-Accel-Buffering": "no"})
