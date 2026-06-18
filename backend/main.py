@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.db import db, init_db
 from backend.base_actor import load_actor_class
+from backend.engines.arena_engine import ArenaEngine
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,9 @@ async def lifespan(app: FastAPI):
     # Wire singletons so routers can import them
     import backend.engines.job_engine as je_mod
     je_mod.job_engine = JobEngine(db.pool, scheduler)
+
+    import backend.engines.arena_engine as ae_mod
+    ae_mod.arena_engine = ArenaEngine(db.pool, je_mod.job_engine)
 
     # Create Ray actors for running workers
     asyncio.create_task(_create_actors())
@@ -120,6 +124,7 @@ from backend.api.workers   import router as workers_router
 from backend.api.templates import router as templates_router
 from backend.api.analysis  import router as analysis_router
 from backend.api.results   import router as results_router
+from backend.api.arena     import router as arena_router
 
 app.include_router(jobs_router)
 app.include_router(runs_router)
@@ -127,6 +132,7 @@ app.include_router(workers_router)
 app.include_router(templates_router)
 app.include_router(analysis_router)
 app.include_router(results_router)
+app.include_router(arena_router)
 
 @app.get("/api/health")
 async def health():
