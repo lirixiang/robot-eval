@@ -14,12 +14,6 @@
 
 x-isaac-lab-base: &isaac-lab-base
   image: isaaclab_arena:latest
-  # 开源版本改用官方镜像，取消注释以下 build 并注释上面 image：
-  # build:
-  #   context: .
-  #   dockerfile: Dockerfile.worker
-  #   args:
-  #     ISAAC_LAB_VERSION: "2.3.0"
   network_mode: host
   environment:
     - NVIDIA_DRIVER_CAPABILITIES=all
