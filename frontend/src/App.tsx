@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { fetchJobs, fetchConfigs, fetchResults, fetchWorkers, submitJob, cancelJob, streamLogs } from './api'
 import type { Job, JobResult, Worker, Configs, SubmitRequest } from './types'
+import { useRouter } from './useRouter'
 import DashboardView  from './components/DashboardView'
 import SubmitView     from './components/SubmitView'
 import JobsView       from './components/JobsView'
@@ -12,15 +13,18 @@ import LeaderboardView from './components/LeaderboardView'
 export type ViewName = 'dashboard' | 'submit' | 'jobs' | 'results' | 'workers' | 'leaderboard'
 
 export default function App() {
-  const [view, setView]       = useState<ViewName>('dashboard')
+  const { view, params, navigate, setParam } = useRouter()
+
   const [configs, setConfigs] = useState<Configs>({ environments: [], policy_types: [], example_job: {} as SubmitRequest })
   const [jobs, setJobs]       = useState<Job[]>([])
   const [results, setResults] = useState<JobResult[]>([])
   const [workers, setWorkers] = useState<Worker[]>([])
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [logs, setLogs]       = useState<string[]>([])
   const [modalWorker, setModalWorker] = useState<number | null>(null)
   const unsubRef = useRef<(() => void) | null>(null)
+
+  // selectedJobId lives in URL: /jobs?id=xxx
+  const selectedJobId = view === 'jobs' ? (params.get('id') ?? null) : null
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const refreshJobs    = useCallback(() => fetchJobs().then(setJobs), [])
@@ -38,7 +42,7 @@ export default function App() {
 
   // ── Log streaming ──────────────────────────────────────────────────────────
   const selectJob = useCallback((jobId: string) => {
-    setSelectedJobId(jobId)
+    setParam('id', jobId)
     setLogs([])
     unsubRef.current?.()
     unsubRef.current = streamLogs(
@@ -46,14 +50,26 @@ export default function App() {
       (line) => setLogs(prev => [...prev.slice(-500), line]),
       () => { refreshJobs(); refreshResults() },
     )
-  }, [refreshJobs, refreshResults])
+  }, [setParam, refreshJobs, refreshResults])
+
+  // Re-attach log stream when navigating back to /jobs?id=xxx
+  useEffect(() => {
+    if (view === 'jobs' && selectedJobId) {
+      unsubRef.current?.()
+      unsubRef.current = streamLogs(
+        selectedJobId,
+        (line) => setLogs(prev => [...prev.slice(-500), line]),
+        () => { refreshJobs(); refreshResults() },
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, selectedJobId])
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (req: SubmitRequest) => {
     const job = await submitJob(req)
     await refreshJobs()
-    selectJob(job.id)
-    setView('jobs')
+    navigate('jobs', { id: job.id })
   }
 
   const handleCancel = async (id: string) => {
@@ -65,18 +81,18 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.key === 'n' || e.key === 'N') setView('submit')
-      if (e.key === 'j' || e.key === 'J') setView('jobs')
-      if (e.key === 'w' || e.key === 'W') setView('workers')
-      if (e.key === 'l' || e.key === 'L') setView('leaderboard')
+      if (e.key === 'n' || e.key === 'N') navigate('submit')
+      if (e.key === 'j' || e.key === 'J') navigate('jobs')
+      if (e.key === 'w' || e.key === 'W') navigate('workers')
+      if (e.key === 'l' || e.key === 'L') navigate('leaderboard')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [navigate])
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const activeJob    = jobs.find(j => j.status === 'running') ?? null
-  const busyWorkers  = workers.filter(w => w.busy).length
+  const activeJob     = jobs.find(j => j.status === 'running') ?? null
+  const busyWorkers   = workers.filter(w => w.busy).length
   const onlineWorkers = workers.filter(w => w.online).length
 
   const NAV: { id: ViewName; label: string; icon: string }[] = [
@@ -90,8 +106,8 @@ export default function App() {
 
   // ── Aggregate metrics ──────────────────────────────────────────────────────
   const completedResults = results.filter(r => r.metrics?.success_rate != null)
-  const avgSr  = completedResults.length ? completedResults.reduce((s, r) => s + (r.metrics.success_rate ?? 0), 0) / completedResults.length : 0
-  const bestUph = completedResults.length ? Math.max(...completedResults.map(r => r.metrics.uph ?? 0)) : 0
+  const avgSr    = completedResults.length ? completedResults.reduce((s, r) => s + (r.metrics.success_rate ?? 0), 0) / completedResults.length : 0
+  const bestUph  = completedResults.length ? Math.max(...completedResults.map(r => r.metrics.uph ?? 0)) : 0
   const avgCycle = completedResults.length ? completedResults.reduce((s, r) => s + (r.metrics.avg_cycle_s ?? 0), 0) / completedResults.length : 0
 
   return (
@@ -120,7 +136,7 @@ export default function App() {
           <nav className="flex items-center gap-0.5">
             {NAV.map(n => (
               <button key={n.id} className={`nav-btn ${view === n.id ? 'active' : ''}`}
-                      onClick={() => setView(n.id)}>
+                      onClick={() => navigate(n.id)}>
                 <i className={`fas ${n.icon} mr-1.5 text-[11px]`} />
                 {n.label}
               </button>
@@ -189,7 +205,7 @@ export default function App() {
             jobs={jobs} results={results} workers={workers}
             activeJob={activeJob} logs={logs}
             onSelectJob={selectJob} onOpenModal={setModalWorker}
-            onNavigate={setView}
+            onNavigate={navigate}
             onQuickSubmit={handleSubmit}
             configs={configs}
           />
@@ -201,7 +217,7 @@ export default function App() {
           <JobsView
             jobs={jobs} selectedId={selectedJobId} logs={logs}
             onSelect={selectJob} onCancel={handleCancel}
-            onNavigate={setView}
+            onNavigate={navigate}
           />
         )}
         {view === 'results' && (
