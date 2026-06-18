@@ -163,4 +163,11 @@ async def health():
     return {"status": status, "db": db_ok, "ray": ray_ok}
 
 if _STATIC.exists():
-    app.mount("/", StaticFiles(directory=str(_STATIC), html=True), name="static")
+    from fastapi.responses import FileResponse
+    # Serve static assets under /assets directly
+    app.mount("/assets", StaticFiles(directory=str(_STATIC / "assets")), name="assets")
+
+    # Catch-all: return index.html for all non-API paths (SPA client-side routing)
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        return FileResponse(str(_STATIC / "index.html"))
