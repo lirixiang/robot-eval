@@ -118,11 +118,13 @@ from backend.api.jobs      import router as jobs_router
 from backend.api.runs      import router as runs_router
 from backend.api.workers   import router as workers_router
 from backend.api.templates import router as templates_router
+from backend.api.analysis  import router as analysis_router
 
 app.include_router(jobs_router)
 app.include_router(runs_router)
 app.include_router(workers_router)
 app.include_router(templates_router)
+app.include_router(analysis_router)
 
 @app.get("/api/health")
 async def health():
