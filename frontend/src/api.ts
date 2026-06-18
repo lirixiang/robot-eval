@@ -117,29 +117,35 @@ export async function fetchRayStatus(): Promise<RayStatus> {
 
 export async function fetchRun(id: string): Promise<Run> {
   const r = await fetch(`${BASE}/runs/${id}`)
+  if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
 
 export async function setBaseline(runId: string): Promise<void> {
-  await fetch(`${BASE}/runs/${runId}/set-baseline`, { method: 'PUT' })
+  const r = await fetch(`${BASE}/runs/${runId}/set-baseline`, { method: 'PUT' })
+  if (!r.ok) throw new Error(await r.text())
 }
 
 export async function reproduceJob(jobId: string): Promise<Job> {
   const r = await fetch(`${BASE}/jobs/${jobId}/reproduce`, { method: 'POST' })
+  if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
 
 export async function fetchCompare(runIds: string[]): Promise<AnalysisCompare> {
   const r = await fetch(`${BASE}/analysis/compare?runs=${runIds.join(',')}`)
+  if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
 
 export async function fetchTrend(model: string, env: string, days = 30): Promise<TrendPoint[]> {
   const r = await fetch(`${BASE}/analysis/trend?model=${encodeURIComponent(model)}&env=${encodeURIComponent(env)}&days=${days}`)
+  if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
 
 export async function fetchTemplates(): Promise<Template[]> {
   const r = await fetch(`${BASE}/templates`)
+  if (!r.ok) throw new Error(await r.text())
   return r.json()
 }

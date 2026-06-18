@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
 import type { Job, JobResult, Worker, Configs, SubmitRequest } from '../types'
 import type { ViewName } from '../App'
+import { StatusChip } from './StatusChip'
 
 interface Props {
   jobs: Job[]
@@ -21,10 +22,6 @@ function LogLine({ line }: { line: string }) {
   return <div className={`${cls} leading-5`}>{line}</div>
 }
 
-function statusChip(status: Job['status']) {
-  const m: Record<string, string> = { running: 'chip-run', done: 'chip-done', failed: 'chip-fail', failed_final: 'chip-fail', pending: 'chip-pend', cancelled: 'chip', retry_pending: 'chip-pend' }
-  return <span className={`chip ${m[status] ?? 'chip'}`}>{status}</span>
-}
 
 export default function DashboardView({ jobs, results, workers, activeJob, logs, onSelectJob, onOpenModal, onNavigate, onQuickSubmit, configs }: Props) {
   const logEndRef = useRef<HTMLDivElement>(null)
@@ -140,7 +137,7 @@ export default function DashboardView({ jobs, results, workers, activeJob, logs,
               <div className="flex items-center gap-2">
                 <span className="tag text-ink-500">运行中</span>
                 <span className="chip chip-run font-mono text-[11px]">{activeJob.id.slice(0, 8)}</span>
-                {statusChip(activeJob.status)}
+                <StatusChip status={activeJob.status} />
               </div>
               <button className="btn-sm" style={{ color: '#fca5a5', borderColor: 'rgba(239,68,68,.3)' }}>终止</button>
             </div>

@@ -1,5 +1,5 @@
 // frontend/src/components/AnalysisView.tsx
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { fetchCompare, fetchTrend } from '../api'
 import type { AnalysisCompare, TrendPoint } from '../types'
@@ -10,40 +10,51 @@ interface Props {
 
 export default function AnalysisView({ initialRunIds = [] }: Props) {
   const [runInput, setRunInput] = useState(initialRunIds.join(','))
+
+  // Sync the text field when the caller pushes a new selection from ResultsView.
+  useEffect(() => {
+    setRunInput(initialRunIds.join(','))
+  }, [initialRunIds])
   const [compare, setCompare]   = useState<AnalysisCompare | null>(null)
   const [trendModel, setTrendModel] = useState('')
   const [trendEnv, setTrendEnv]     = useState('lift_object')
   const [trendDays, setTrendDays]   = useState(30)
   const [trendData, setTrendData]   = useState<TrendPoint[]>([])
-  const [loading, setLoading]       = useState(false)
+  const [compareLoading, setCompareLoading] = useState(false)
+  const [trendLoading, setTrendLoading]     = useState(false)
   const [error, setError]           = useState<string | null>(null)
 
   const runCompare = async () => {
     const ids = runInput.split(',').map(s => s.trim()).filter(Boolean)
     if (!ids.length) return
-    setLoading(true); setError(null)
+    setCompareLoading(true); setError(null)
     try {
       const data = await fetchCompare(ids)
       setCompare(data)
     } catch (e) {
       setError(String(e))
     } finally {
-      setLoading(false)
+      setCompareLoading(false)
     }
   }
 
   const runTrend = async () => {
     if (!trendModel || !trendEnv) return
-    setLoading(true); setError(null)
+    setTrendLoading(true); setError(null)
     try {
       const data = await fetchTrend(trendModel, trendEnv, trendDays)
       setTrendData(data)
     } catch (e) {
       setError(String(e))
     } finally {
-      setLoading(false)
+      setTrendLoading(false)
     }
   }
+
+  const chartData = useMemo(
+    () => trendData.map(p => ({ ...p, time: new Date(p.finished_at * 1000).toLocaleDateString() })),
+    [trendData],
+  )
 
   return (
     <div className="h-full overflow-y-auto p-5 space-y-6">
@@ -59,9 +70,9 @@ export default function AnalysisView({ initialRunIds = [] }: Props) {
             placeholder="Run ID，逗号分隔"
             className="flex-1 bg-ink-800 border border-ink-600 rounded px-3 py-1.5 text-sm text-white placeholder-ink-500 focus:outline-none focus:border-green-500"
           />
-          <button onClick={runCompare} disabled={loading}
+          <button onClick={runCompare} disabled={compareLoading}
                   className="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white text-sm rounded disabled:opacity-50">
-            {loading ? '加载中…' : '对比'}
+            {compareLoading ? '加载中…' : '对比'}
           </button>
         </div>
 
@@ -111,7 +122,7 @@ export default function AnalysisView({ initialRunIds = [] }: Props) {
             <option value={30}>30天</option>
             <option value={90}>90天</option>
           </select>
-          <button onClick={runTrend} disabled={loading}
+          <button onClick={runTrend} disabled={trendLoading}
                   className="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white text-sm rounded disabled:opacity-50">
             查询
           </button>
@@ -119,10 +130,7 @@ export default function AnalysisView({ initialRunIds = [] }: Props) {
 
         {trendData.length > 0 && (
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={trendData.map(p => ({
-              ...p,
-              time: new Date(p.finished_at * 1000).toLocaleDateString(),
-            }))}>
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2433" />
               <XAxis dataKey="time" tick={{ fill: '#6b7280', fontSize: 11 }} />
               <YAxis domain={[0, 1]} tick={{ fill: '#6b7280', fontSize: 11 }} />
@@ -133,7 +141,7 @@ export default function AnalysisView({ initialRunIds = [] }: Props) {
           </ResponsiveContainer>
         )}
 
-        {trendData.length === 0 && !loading && trendModel && (
+        {trendData.length === 0 && !trendLoading && trendModel && (
           <div className="text-ink-500 text-sm text-center py-4">暂无数据</div>
         )}
       </section>

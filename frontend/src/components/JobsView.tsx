@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { Job } from '../types'
 import type { ViewName } from '../App'
 import { setBaseline, reproduceJob } from '../api'
+import { STATUS_CHIP_CLASS, RetryBadge } from './StatusChip'
 
 interface Props {
   jobs: Job[]
@@ -15,10 +16,6 @@ interface Props {
 
 type Filter = 'all' | 'running' | 'done' | 'failed'
 
-const STATUS_CHIP: Record<string, string> = {
-  running: 'chip-run', done: 'chip-done', failed: 'chip-fail', failed_final: 'chip-fail',
-  pending: 'chip-pend', cancelled: 'chip', retry_pending: 'chip-pend',
-}
 
 function LogLine({ line }: { line: string }) {
   const cls = line.includes('✓') ? 'text-success' : (line.includes('✗') || line.includes('ERROR')) ? 'text-fail' : 'text-ink-400'
@@ -115,18 +112,14 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
                     <td className="px-3 py-2 num text-ink-300">{job.result ? job.result.elapsed_s.toFixed(1) : '–'}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1 flex-wrap">
-                        <span className={`chip ${STATUS_CHIP[job.status] ?? 'chip'}`}>{job.status}</span>
-                        {job.retry_count != null && job.retry_count > 0 && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-400 border border-red-800/40">
-                            重试 {job.retry_count}/{job.max_retries ?? 3}
-                          </span>
-                        )}
+                        <span className={`chip ${STATUS_CHIP_CLASS[job.status] ?? 'chip'}`}>{job.status}</span>
+                        <RetryBadge retryCount={job.retry_count} maxRetries={job.max_retries} />
                       </div>
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <button className="btn-sm" onClick={e => { e.stopPropagation(); onSelect(job.id) }}>日志</button>
-                        {(job.status === 'running' || job.status === 'pending') && (
+                        {(job.status === 'running' || job.status === 'pending' || job.status === 'retry_pending') && (
                           <button className="btn-sm" style={{ color: '#fca5a5', borderColor: 'rgba(239,68,68,.3)' }}
                                   onClick={e => { e.stopPropagation(); onCancel(job.id) }}>×</button>
                         )}
@@ -156,12 +149,8 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="font-mono text-gold text-sm">{selectedJob.id.slice(0, 16)}…</span>
               <div className="flex items-center gap-1.5">
-                <span className={`chip ${STATUS_CHIP[selectedJob.status] ?? 'chip'}`}>{selectedJob.status}</span>
-                {selectedJob.retry_count != null && selectedJob.retry_count > 0 && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-400 border border-red-800/40">
-                    重试 {selectedJob.retry_count}/{selectedJob.max_retries ?? 3}
-                  </span>
-                )}
+                <span className={`chip ${STATUS_CHIP_CLASS[selectedJob.status] ?? 'chip'}`}>{selectedJob.status}</span>
+                <RetryBadge retryCount={selectedJob.retry_count} maxRetries={selectedJob.max_retries} />
               </div>
             </div>
 
@@ -201,9 +190,12 @@ export default function JobsView({ jobs, selectedId, logs, onSelect, onCancel, o
                   <button
                     className="mt-2 btn-sm w-full text-center"
                     style={{ color: '#86efac', borderColor: 'rgba(34,197,94,.3)' }}
-                    onClick={() => {
-                      if (confirm('将此 Run 设为基准？')) {
-                        setBaseline(selectedJob.latest_run!.id)
+                    onClick={async () => {
+                      if (!confirm('将此 Run 设为回归基准？')) return
+                      try {
+                        await setBaseline(selectedJob.latest_run!.id)
+                      } catch (e) {
+                        alert(`设置基准失败: ${e}`)
                       }
                     }}
                   >

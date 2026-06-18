@@ -9,6 +9,7 @@ const PATH_MAP: Record<string, ViewName> = {
   '/results':     'results',
   '/workers':     'workers',
   '/leaderboard': 'leaderboard',
+  '/analysis':    'analysis',
 }
 
 const VIEW_PATH: Record<ViewName, string> = {

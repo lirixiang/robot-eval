@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
 import type { JobResult } from '../types'
 import { fetchRun } from '../api'
@@ -34,7 +34,10 @@ function exportCSV(results: JobResult[]) {
 export default function ResultsView({ results, onNavigateAnalysis }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [runCache, setRunCache] = useState<Record<string, Run>>({})
+  // runCache does not drive render directly — use a ref to avoid O(n) spreads and spurious re-renders.
+  const runCache = useRef<Map<string, Run>>(new Map())
+  // Trigger a re-render after a run is loaded so the expanded row can display its data.
+  const [, forceUpdate] = useState(0)
 
   const toggleSelect = (jobId: string) => {
     setSelected(prev => {
@@ -44,19 +47,24 @@ export default function ResultsView({ results, onNavigateAnalysis }: Props) {
     })
   }
 
-  const toggleExpand = async (jobId: string) => {
+  const toggleExpand = async (r: JobResult) => {
+    const runId = r.run_id
+    if (!runId) return  // no run_id available, can't fetch episodes
+    const isExpanding = !expanded.has(r.job_id)
     setExpanded(prev => {
       const next = new Set(prev)
-      next.has(jobId) ? next.delete(jobId) : next.add(jobId)
+      isExpanding ? next.add(r.job_id) : next.delete(r.job_id)
       return next
     })
     // Lazily load run with episodes if not cached
-    if (!runCache[jobId]) {
+    if (isExpanding && !runCache.current.has(r.job_id)) {
       try {
-        const run = await fetchRun(jobId)
-        setRunCache(prev => ({ ...prev, [jobId]: run }))
+        const run = await fetchRun(runId)
+        runCache.current.set(r.job_id, run)
+        forceUpdate(n => n + 1)
       } catch {
-        // ignore
+        // Revert expansion so the user can see it failed rather than showing "暂无单集数据"
+        setExpanded(prev => { const next = new Set(prev); next.delete(r.job_id); return next })
       }
     }
   }
@@ -151,7 +159,14 @@ export default function ResultsView({ results, onNavigateAnalysis }: Props) {
           <div className="flex items-center gap-2">
             {selected.size > 0 && onNavigateAnalysis && (
               <button className="btn-sm" style={{ color: '#86efac', borderColor: 'rgba(34,197,94,.3)' }}
-                      onClick={() => onNavigateAnalysis(Array.from(selected))}>
+                      onClick={() => {
+                        const selectedRunIds = Array.from(selected)
+                          .map(jobId => results.find(r => r.job_id === jobId)?.run_id)
+                          .filter((id): id is string => !!id)
+                        if (selectedRunIds.length > 0) {
+                          onNavigateAnalysis(selectedRunIds)
+                        }
+                      }}>
                 <i className="fas fa-chart-line mr-1" />比较选中 ({selected.size})
               </button>
             )}
@@ -178,10 +193,10 @@ export default function ResultsView({ results, onNavigateAnalysis }: Props) {
                 const m = r.metrics
                 const tUph = m.theoretical_max_uph ?? (m.avg_cycle_s > 0 ? 3600 / m.avg_cycle_s : 0)
                 const isExpanded = expanded.has(r.job_id)
-                const run = runCache[r.job_id]
+                const run = runCache.current.get(r.job_id)
                 return (
                   <React.Fragment key={r.job_id}>
-                    <tr key={r.job_id} className="row-hover border-b border-ink-800/50">
+                    <tr className="row-hover border-b border-ink-800/50">
                       <td className="px-3 py-2">
                         <input type="checkbox" checked={selected.has(r.job_id)}
                                onChange={() => toggleSelect(r.job_id)}
@@ -199,7 +214,7 @@ export default function ResultsView({ results, onNavigateAnalysis }: Props) {
                       <td className="px-3 py-2"><span className="chip chip-done">done</span></td>
                       <td className="px-3 py-2 text-ink-500 whitespace-nowrap">{new Date(r.timestamp * 1000).toLocaleString('zh-CN')}</td>
                       <td className="px-3 py-2">
-                        <button className="btn-sm text-[10px]" onClick={() => toggleExpand(r.job_id)}>
+                        <button className="btn-sm text-[10px]" onClick={() => toggleExpand(r)}>
                           {isExpanded ? '收起' : '单集'}
                         </button>
                       </td>

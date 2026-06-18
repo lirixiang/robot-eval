@@ -88,6 +88,7 @@ export interface Job {
 
 export interface JobResult {
   job_id:    string
+  run_id?:   string   // NEW — latest run UUID
   actor:     string
   job:       SubmitRequest
   metrics:   Metrics
