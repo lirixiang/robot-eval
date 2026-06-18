@@ -29,6 +29,7 @@ async def create_tables(pool: asyncpg.Pool) -> None:
             timeout_s         INTEGER DEFAULT 3600,
             baseline_run_id   TEXT,
             description       TEXT,
+            config            JSONB DEFAULT '{}',
             created_at        DOUBLE PRECISION,
             updated_at        DOUBLE PRECISION
         );
@@ -142,4 +143,8 @@ async def create_tables(pool: asyncpg.Pool) -> None:
             line    TEXT,
             ts      DOUBLE PRECISION
         );
+        """)
+        # Migration: add config column to existing tables
+        await conn.execute("""
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS config JSONB DEFAULT '{}';
         """)

@@ -16,13 +16,26 @@ class JobEngine:
         policy_server_url: str = "", template_id: int | None = None,
         max_retries: int = 3, timeout_s: int = 3600,
         description: str | None = None,
+        arena_env_args: dict | None = None,
+        num_envs: int = 1,
+        num_episodes: int | None = 10,
+        num_steps: int | None = None,
+        policy_type: str = "zero_action",
     ) -> dict:
         job_id = uuid.uuid4().hex[:8]
+        config = {
+            "arena_env_args": arena_env_args or {},
+            "num_envs":       num_envs,
+            "num_episodes":   num_episodes,
+            "num_steps":      num_steps,
+            "policy_type":    policy_type,
+        }
         job = await jq.create_job(
             self._pool, id=job_id, name=name, template_id=template_id,
             model_name=model_name, submitter=submitter,
             policy_config=policy_config or {}, policy_server_url=policy_server_url,
             max_retries=max_retries, timeout_s=timeout_s, description=description,
+            config=config,
         )
         await self._scheduler.enqueue(job_id)
         logger.info("job.created", extra={"job_id": job_id, "model": model_name})
@@ -42,6 +55,7 @@ class JobEngine:
         if last_run and last_run.get("seed") is not None:
             policy_config["_reproduce_seed"] = last_run["seed"]
         clone_id = uuid.uuid4().hex[:8]
+        original_config = original.get("config") or {}
         clone = await jq.create_job(
             self._pool, id=clone_id,
             name=f"{original['name']}_repro",
@@ -53,6 +67,7 @@ class JobEngine:
             max_retries=original.get("max_retries", 3),
             timeout_s=original.get("timeout_s", 3600),
             description=f"Reproduced from {job_id}",
+            config=original_config,   # preserve arena_env_args etc.
         )
         await self._scheduler.enqueue(clone["id"])
         return clone

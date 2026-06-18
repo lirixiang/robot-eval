@@ -9,6 +9,12 @@ from backend.db.queries import jobs as jq, runs as rq
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
+def _get_engine():
+    from backend.engines.job_engine import job_engine
+    if job_engine is None:
+        raise HTTPException(503, "Engine not ready")
+    return job_engine
+
 class SubmitRequest(BaseModel):
     name:             str         = "eval_job"
     model_name:       str         = ""
@@ -27,14 +33,19 @@ class SubmitRequest(BaseModel):
 
 @router.post("")
 async def submit_job(req: SubmitRequest):
-    from backend.engines.job_engine import job_engine
+    engine = _get_engine()
     config = req.model_dump()
-    job = await job_engine.create_job(
+    job = await engine.create_job(
         name=req.name, model_name=req.model_name or None,
         submitter=req.submitter or None, policy_config=req.policy_config,
         policy_server_url=req.policy_server_url,
         template_id=req.template_id, max_retries=req.max_retries,
         timeout_s=req.timeout_s, description=req.description or None,
+        arena_env_args=req.arena_env_args,
+        num_envs=req.num_envs,
+        num_episodes=req.num_episodes,
+        num_steps=req.num_steps,
+        policy_type=req.policy_type,
     )
     # Stash full config as first log entry for reproduce fidelity
     await jq.append_log(db.pool, job["id"], json.dumps(config))
@@ -57,20 +68,20 @@ async def get_job(job_id: str):
 
 @router.delete("/{job_id}")
 async def cancel_job(job_id: str):
-    from backend.engines.job_engine import job_engine
-    await job_engine.cancel_job(job_id)
+    engine = _get_engine()
+    await engine.cancel_job(job_id)
     return {"ok": True}
 
 @router.post("/{job_id}/reproduce")
 async def reproduce_job(job_id: str):
-    from backend.engines.job_engine import job_engine
-    clone = await job_engine.reproduce_job(job_id)
+    engine = _get_engine()
+    clone = await engine.reproduce_job(job_id)
     return clone
 
 @router.get("/{job_id}/regression")
 async def get_regression(job_id: str):
-    from backend.engines.job_engine import job_engine
-    return await job_engine.get_regression(job_id)
+    engine = _get_engine()
+    return await engine.get_regression(job_id)
 
 @router.get("/{job_id}/logs")
 async def stream_logs(job_id: str):

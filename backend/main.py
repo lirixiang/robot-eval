@@ -131,7 +131,17 @@ async def health():
         db_ok = True
     except Exception:
         db_ok = False
-    return {"status": "ok" if db_ok else "degraded", "db": db_ok}
+
+    ray_ok = False
+    try:
+        import ray
+        if ray.is_initialized():
+            ray_ok = True
+    except Exception:
+        pass
+
+    status = "ok" if (db_ok and ray_ok) else "degraded"
+    return {"status": status, "db": db_ok, "ray": ray_ok}
 
 if _STATIC.exists():
     app.mount("/", StaticFiles(directory=str(_STATIC), html=True), name="static")

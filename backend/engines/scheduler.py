@@ -103,16 +103,17 @@ class JobScheduler:
 
 def _build_runner(job: dict, actor_name: str):
     """Build the appropriate runner for this job. Returns (runner, config_for_run)."""
+    cfg = job.get("config") or {}          # read persisted config
     policy_url = job.get("policy_server_url", "")
     config = {
-        "actor_name": actor_name,
-        "arena_env_args": job.get("arena_env_args", {}),
-        "num_envs":     job.get("num_envs", 1),
-        "num_episodes": job.get("num_episodes", 10),
-        "num_steps":    job.get("num_steps"),
-        "policy_type":  job.get("policy_type", "zero_action"),
+        "actor_name":    actor_name,
+        "arena_env_args": cfg.get("arena_env_args", {}),
+        "num_envs":      cfg.get("num_envs", 1),
+        "num_episodes":  cfg.get("num_episodes", 10),
+        "num_steps":     cfg.get("num_steps"),
+        "policy_type":   cfg.get("policy_type", "zero_action"),
         "policy_config": job.get("policy_config") or {},
-        "name":         job.get("name", ""),
+        "name":          job.get("name", ""),
     }
     if policy_url:
         config["policy_server_url"] = policy_url
@@ -123,7 +124,7 @@ async def _handle_failure(pool, job_id, run_id, error, job, queue):
     await rq.update_run(pool, run_id, status="failed",
                          error_msg=error, finished_at=time.time())
     retry_count = await jq.increment_retry(pool, job_id)
-    if retry_count <= job.get("max_retries", 3):
+    if retry_count < job.get("max_retries", 3):
         backoff = 2 ** retry_count
         await jq.update_job_status(pool, job_id, "retry_pending")
         await jq.append_log(pool, job_id,
