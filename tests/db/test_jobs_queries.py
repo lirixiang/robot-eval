@@ -1,17 +1,6 @@
-import os, pytest, pytest_asyncio, asyncpg, uuid
-import sys; sys.path.insert(0, ".")
-from backend.db.schema import create_tables
+import pytest, asyncpg, uuid
 from backend.db.queries import jobs as jq, runs as rq
 
-TEST_DB = os.environ.get("TEST_DATABASE_URL",
-    "postgresql://eval:eval_secret@127.0.0.1:5432/robot_eval_test")
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def pool():
-    p = await asyncpg.create_pool(TEST_DB)
-    await create_tables(p)
-    yield p
-    await p.close()
 
 @pytest.mark.asyncio(loop_scope="module")
 async def test_create_and_get_job(pool):

@@ -62,6 +62,8 @@ async def increment_retry(pool: asyncpg.Pool, job_id: str) -> int:
             "WHERE id=$2 RETURNING retry_count",
             time.time(), job_id,
         )
+    if row is None:
+        raise ValueError(f"Job {job_id!r} not found")
     return row["retry_count"]
 
 async def set_baseline_run(pool: asyncpg.Pool, job_id: str, run_id: str) -> None:

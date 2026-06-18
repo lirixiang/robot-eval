@@ -41,7 +41,12 @@ async def update_run(
     worker_id: int | None = None, started_at: float | None = None,
     finished_at: float | None = None,
 ) -> None:
-    sets, params = [], [run_id]
+    """Update fields on a run row.
+
+    If every optional argument is None this is a no-op (no SQL is executed).
+    run_id is appended last so that SET placeholders start at $1.
+    """
+    sets, params = [], []
     for col, val in [("status", status), ("elapsed_s", elapsed_s),
                      ("error_msg", error_msg), ("worker_id", worker_id),
                      ("started_at", started_at), ("finished_at", finished_at)]:
@@ -53,9 +58,10 @@ async def update_run(
         sets.append(f"metrics=${len(params)}")
     if not sets:
         return
+    params.append(run_id)   # run_id goes LAST so SET clauses bind correctly
     async with pool.acquire() as conn:
         await conn.execute(
-            f"UPDATE runs SET {','.join(sets)} WHERE id=$1", *params
+            f"UPDATE runs SET {','.join(sets)} WHERE id=${len(params)}", *params
         )
 
 def _row(row) -> dict:
