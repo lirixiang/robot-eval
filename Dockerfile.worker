@@ -1,0 +1,28 @@
+# Robot Eval Platform — Worker Image
+#
+# Base: official NVIDIA Isaac Lab (Isaac Sim + Isaac Lab included)
+# Pull from NGC (free account): https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-lab
+#
+# Build:
+#   docker build -f Dockerfile.worker -t robot-eval-worker:latest .
+#
+# Or via docker-compose (set image: robot-eval-worker:latest in x-isaac-lab-base):
+#   docker-compose build isaac-lab-worker-0
+
+ARG ISAAC_LAB_VERSION=2.3.0
+FROM nvcr.io/nvidia/isaac-lab:${ISAAC_LAB_VERSION}
+
+# Isaac Lab ships its own Python at this path
+ARG PYTHON=/isaac-sim/kit/python/bin/python3.12
+
+# Install Ray + dashboard dependencies
+RUN ${PYTHON} -m pip install --no-cache-dir \
+    "ray[default]>=2.9" \
+    Pillow \
+    filelock requests virtualenv pyyaml attrs toml tomli
+
+# EVAL_ACTOR_MODULE / EVAL_ACTOR_CLASS control which actor class is loaded.
+# Defaults match the bundled isaaclab_arena reference implementation.
+ENV EVAL_ACTOR_MODULE="arena_actor" \
+    EVAL_ACTOR_CLASS="IsaacLabArenaActor" \
+    EVAL_PYTHONPATH="/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments"

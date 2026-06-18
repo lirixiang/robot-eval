@@ -13,7 +13,15 @@
 #   $RAY start --address=<主节点IP>:6379 --num-gpus=<N> --block
 
 x-isaac-lab-base: &isaac-lab-base
+  # 使用私有镜像（默认）：
   image: isaaclab_arena:latest
+  # 如无私有镜像，改用官方 NGC 镜像自行构建（需先 docker-compose build）：
+  # image: robot-eval-worker:latest
+  # build:
+  #   context: .
+  #   dockerfile: Dockerfile.worker
+  #   args:
+  #     ISAAC_LAB_VERSION: "2.3.0"
   network_mode: host
   environment:
     - NVIDIA_DRIVER_CAPABILITIES=all
