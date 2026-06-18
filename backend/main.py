@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from backend.db import db
 from backend.base_actor import load_actor_class
+import backend.host_manager as hm
 
 ROOT        = Path(__file__).parent.parent
 RESULTS_DIR = ROOT / "results"
@@ -81,6 +82,13 @@ class SubmitRequest(BaseModel):
     model_name:         str        = ""   # e.g. "pi0.5"
     submitter:          str        = ""   # team / person name
     description:        str        = ""
+
+class AddHostRequest(BaseModel):
+    label:    str
+    host:     str
+    port:     int = 22
+    username: str
+    password: str
 
 # ── Ray 初始化 ─────────────────────────────────────────────────────────────────
 
@@ -150,6 +158,38 @@ async def get_workers():
             "host_id":         w["host_id"],
         })
     return results
+
+# ── Host management ───────────────────────────────────────────────────────────
+
+@app.get("/api/hosts")
+async def list_hosts():
+    return await hm.list_hosts()
+
+@app.post("/api/hosts", status_code=201)
+async def add_host(req: AddHostRequest):
+    return await hm.add_host(req.label, req.host, req.port, req.username, req.password)
+
+@app.delete("/api/hosts/{host_id}", status_code=204)
+async def delete_host(host_id: int):
+    await hm.delete_host(host_id)
+
+@app.post("/api/hosts/{host_id}/probe")
+async def probe_host(host_id: int):
+    return await hm.probe_host(host_id)
+
+@app.post("/api/hosts/{host_id}/deploy", status_code=202)
+async def deploy_worker(host_id: int):
+    try:
+        return await hm.deploy_worker(host_id)
+    except RuntimeError as e:
+        msg = str(e)
+        if "No free GPU" in msg:
+            raise HTTPException(409, detail=msg)
+        raise HTTPException(500, detail=msg)
+
+@app.delete("/api/hosts/{host_id}/workers/{worker_id}", status_code=204)
+async def destroy_worker(host_id: int, worker_id: int):
+    await hm.destroy_worker(host_id, worker_id)
 
 # ── Isaac Sim 原生流媒体支持 ──────────────────────────────────────────────────
 
