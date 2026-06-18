@@ -54,9 +54,9 @@ export default function EvalView({
   onSelectJob, onSubmit, onCancel, onReproduce,
   onNavigateAnalysis, rightTab, onRightTabChange,
 }: Props) {
-  const [leftW, setLeftW] = useState(288)   // initial 288px ≈ w-72
+  const [leftW, setLeftW] = useState(760)   // SubmitView has internal 2-column layout
 
-  const clampLeft = (w: number) => Math.max(180, Math.min(520, w))
+  const clampLeft = (w: number) => Math.max(480, Math.min(1100, w))
 
   return (
     <div className="h-full flex overflow-hidden">
