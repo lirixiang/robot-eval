@@ -12,7 +12,10 @@ interface Props {
 function useLocalIp() {
   const [ip, setIp] = useState('127.0.0.1')
   useEffect(() => {
-    fetch('/api/system/info').then(r => r.json()).then(d => setIp(d.local_ip)).catch(() => {})
+    fetch('/api/system/info')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.local_ip) setIp(d.local_ip) })
+      .catch(() => {})
   }, [])
   return ip
 }
