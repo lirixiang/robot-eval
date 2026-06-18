@@ -4,6 +4,15 @@ import type { Leaderboard, LeaderboardRow, EloEntry, WinMatrixEntry } from '../t
 
 type Tab = 'traditional' | 'elo'
 
+// Keep in sync with ArenaView.tsx DEFAULT_ENVS
+const DEFAULT_ENVS = [
+  'lift_object',
+  'pick_and_place_maple_table',
+  'kitchen_pick_and_place',
+  'sorting',
+  'press_button',
+]
+
 const MEDAL = ['🥇', '🥈', '🥉']
 
 function RankBadge({ rank }: { rank: number }) {
@@ -66,11 +75,14 @@ function WinMatrix({ entries }: { entries: WinMatrixEntry[] }) {
   const models = Array.from(new Set(entries.flatMap(e => [e.model_a, e.model_b]))).sort()
   if (models.length === 0) return null
 
-  // Build lookup
-  const lookup: Record<string, WinMatrixEntry> = {}
+  // Build nested Map to avoid key collisions with '__' separator
+  const matrixMap = new Map<string, Map<string, WinMatrixEntry>>()
   for (const e of entries) {
-    lookup[`${e.model_a}__${e.model_b}`] = e
-    lookup[`${e.model_b}__${e.model_a}`] = { model_a: e.model_b, model_b: e.model_a, wins_a: e.wins_b, wins_b: e.wins_a, draws: e.draws }
+    if (!matrixMap.has(e.model_a)) matrixMap.set(e.model_a, new Map())
+    matrixMap.get(e.model_a)!.set(e.model_b, e)
+    // Also store the reverse
+    if (!matrixMap.has(e.model_b)) matrixMap.set(e.model_b, new Map())
+    matrixMap.get(e.model_b)!.set(e.model_a, { model_a: e.model_b, model_b: e.model_a, wins_a: e.wins_b, wins_b: e.wins_a, draws: e.draws })
   }
 
   return (
@@ -101,7 +113,7 @@ function WinMatrix({ entries }: { entries: WinMatrixEntry[] }) {
                     </td>
                   )
                 }
-                const entry = lookup[`${rowModel}__${colModel}`]
+                const entry = matrixMap.get(rowModel)?.get(colModel)
                 if (!entry) {
                   return (
                     <td key={colModel} className="px-2 py-1">
@@ -149,7 +161,7 @@ function EloTabContent() {
         if (!e.includes(eloEnv)) setEloEnv(e[0])
       }
     }).catch(() => {})
-  }, [eloEnv])
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -162,7 +174,7 @@ function EloTabContent() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [eloEnv])
 
-  const displayEnvs = eloEnvs.length > 0 ? eloEnvs : ['lift_object']
+  const displayEnvs = eloEnvs.length > 0 ? eloEnvs : DEFAULT_ENVS
 
   return (
     <div className="space-y-5">

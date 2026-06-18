@@ -10,12 +10,14 @@ const DEFAULT_ENVS = [
   'press_button',
 ]
 
-function EloBar({ rating, rd }: { rating: number; rd: number }) {
+function EloBar({ rating, rd, ciLow, ciHigh }: { rating: number; rd: number; ciLow?: number; ciHigh?: number }) {
   const color = rating >= 1600 ? '#10b981' : rating >= 1400 ? '#d4a857' : '#6b7280'
+  const lo = ciLow  != null ? Math.round(ciLow)  : Math.round(rating - 2 * rd)
+  const hi = ciHigh != null ? Math.round(ciHigh) : Math.round(rating + 2 * rd)
   return (
     <div className="flex items-center gap-2">
       <span className="num text-sm font-semibold" style={{ color }}>{Math.round(rating)}</span>
-      <span className="text-[11px] text-ink-500">±{Math.round(2 * rd)}</span>
+      <span className="text-[11px] text-ink-500">[{lo}, {hi}]</span>
     </div>
   )
 }
@@ -23,7 +25,9 @@ function EloBar({ rating, rd }: { rating: number; rd: number }) {
 function MatchStatusBadge({ status, winner }: { status: string; winner: string | null }) {
   if (status === 'done') {
     const label = winner === 'draw' ? 'Draw' : winner === 'a' ? 'A Wins' : winner === 'b' ? 'B Wins' : 'Done'
-    const color = winner === 'draw' ? 'text-ink-400' : 'text-green-400'
+    const color = winner === 'draw' ? 'text-ink-400'
+                : winner == null   ? 'text-ink-500'
+                : 'text-green-400'
     return <span className={`text-[11px] num ${color}`}>{label}</span>
   }
   if (status === 'running') return <span className="text-[11px] text-gold">Running</span>
@@ -36,6 +40,7 @@ export default function ArenaView() {
   const [leaderboard, setLb]    = useState<EloEntry[]>([])
   const [selectedEnv, setEnv]   = useState('lift_object')
   const [error, setError]       = useState<string | null>(null)
+  const [loading, setLoading]   = useState(false)
 
   // New match form state
   const [modelA, setModelA]           = useState('')
@@ -46,6 +51,7 @@ export default function ArenaView() {
   const [submitting, setSubmitting]   = useState(false)
 
   const refresh = useCallback(async () => {
+    setLoading(true)
     try {
       const [ms, lb] = await Promise.all([
         fetchMatches({ env_name: selectedEnv }),
@@ -55,6 +61,8 @@ export default function ArenaView() {
       setLb(lb)
     } catch {
       // silently ignore — backend may not have arena routes yet
+    } finally {
+      setLoading(false)
     }
   }, [selectedEnv])
 
@@ -68,7 +76,7 @@ export default function ArenaView() {
       // Fall back to default envs list — backend arena routes may not be live yet
       setEnvs(DEFAULT_ENVS)
     })
-  }, [selectedEnv])
+  }, [])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -222,7 +230,7 @@ export default function ArenaView() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto space-y-1.5">
-          {matches.length === 0 ? (
+          {!loading && matches.length === 0 ? (
             <div className="text-center text-ink-500 text-sm py-12">
               <i className="fas fa-swords text-2xl block mb-3 opacity-20" />
               暂无对战记录
@@ -263,7 +271,7 @@ export default function ArenaView() {
           <span className="text-[11px] text-ink-500 font-normal">· {selectedEnv}</span>
         </div>
         <div className="flex-1 bg-ink-900 rounded-lg border border-ink-700 overflow-hidden">
-          {leaderboard.length === 0 ? (
+          {!loading && leaderboard.length === 0 ? (
             <div className="text-center text-ink-500 text-sm py-12">
               <i className="fas fa-chart-bar text-2xl block mb-3 opacity-20" />
               暂无排名数据
@@ -284,7 +292,7 @@ export default function ArenaView() {
                     <td className="px-3 py-2 text-ink-500 text-[12px]">{i + 1}</td>
                     <td className="px-3 py-2 text-ink-200 truncate max-w-[120px]">{e.model_name}</td>
                     <td className="px-3 py-2 text-right">
-                      <EloBar rating={e.rating} rd={e.rd} />
+                      <EloBar rating={e.rating} rd={e.rd} ciLow={e.ci_low} ciHigh={e.ci_high} />
                     </td>
                   </tr>
                 ))}
