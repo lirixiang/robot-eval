@@ -122,6 +122,30 @@ class IsaacLabArenaActor:
         print(f"[arena-worker-{worker_id}] Isaac Sim ready "
               f"(HTTP :{self.http_port}, WebRTC :{self.livestream_port})", flush=True)
 
+    # ── 视口帧捕获（MJPEG 流）────────────────────────────────────────────
+
+    def capture_frame(self, quality: int = 75) -> bytes:
+        """Capture current viewport as JPEG bytes for MJPEG streaming."""
+        import io
+        try:
+            import omni.kit.viewport.utility as vp_util
+            from PIL import Image
+            import numpy as np
+
+            vp = vp_util.get_active_viewport()
+            frame = vp_util.capture_viewport_to_buffer(vp)
+            if frame is not None:
+                img = Image.fromarray(np.asarray(frame)[:, :, :3])
+            else:
+                img = Image.new("RGB", (320, 240), (10, 12, 20))
+        except Exception:
+            from PIL import Image
+            img = Image.new("RGB", (320, 240), (10, 12, 20))
+
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        return buf.getvalue()
+
     # ── 健康检查 ──────────────────────────────────────────────────────────
 
     def status(self) -> dict:

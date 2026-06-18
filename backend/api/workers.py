@@ -1,6 +1,8 @@
 from __future__ import annotations
+import asyncio
 import structlog
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(tags=["workers"])
 logger = structlog.get_logger(__name__)
@@ -88,4 +90,31 @@ async def worker_stream_info(worker_id: int):
         "host":            host,
         "signaling_url":   f"ws://{host}:{49200 + worker_id}",
     }
+
+
+@router.get("/api/workers/{worker_id}/mjpeg")
+async def worker_mjpeg_stream(worker_id: int):
+    """MJPEG stream from Isaac Sim viewport via Ray actor frame capture."""
+    import ray
+
+    actor_name = f"arena-worker-{worker_id}"
+    try:
+        actor = ray.get_actor(actor_name, namespace="robot-eval")
+    except Exception:
+        raise HTTPException(404, f"Worker {worker_id} actor not found")
+
+    async def generate():
+        while True:
+            try:
+                frame = await asyncio.wrap_future(actor.capture_frame.remote().future())
+                yield (b"--frame\r\n"
+                       b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
+            except Exception:
+                break
+            await asyncio.sleep(0.066)
+
+    return StreamingResponse(
+        generate(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
 
