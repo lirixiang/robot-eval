@@ -8,12 +8,17 @@ logger = structlog.get_logger(__name__)
 
 @router.get("/api/workers")
 async def get_workers():
+    """Return worker list — reads GPU nodes directly from Ray, no DB."""
     import ray
-    workers = await db.list_remote_workers(status="running")
+    try:
+        nodes = ray.nodes()
+        alive_gpu = [n for n in nodes if n.get("Alive") and n.get("Resources", {}).get("GPU", 0) >= 1]
+    except Exception:
+        alive_gpu = []
+
     results = []
-    for w in workers:
-        actor_name = f"arena-worker-{w['worker_id']}"
-        host_row = await db.get_host(w["host_id"])
+    for idx, node in enumerate(alive_gpu):
+        actor_name = f"arena-worker-{idx}"
         try:
             actor  = ray.get_actor(actor_name, namespace="robot-eval")
             status = ray.get(actor.status.remote(), timeout=3)
@@ -22,10 +27,10 @@ async def get_workers():
             status = {}
             online = False
         results.append({
-            "id":              w["worker_id"],
-            "host":            host_row["host"] if host_row else "unknown",
-            "http_port":       w["http_port"],
-            "livestream_port": w["livestream_port"],
+            "id":              idx,
+            "host":            node.get("NodeManagerAddress", "127.0.0.1"),
+            "http_port":       8042 + idx,
+            "livestream_port": 49200 + idx,
             "actor":           actor_name,
             "online":          online,
             "busy":            status.get("busy", False),
