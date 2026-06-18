@@ -64,7 +64,7 @@ export default function EvalView({
               logs={logs}
               onSelect={onSelectJob}
               onCancel={onCancel}
-              onNavigate={() => {}}
+              onNavigate={() => {/* submit form is always visible on the left — no nav needed */}}
               onReproduce={onReproduce}
             />
           )}

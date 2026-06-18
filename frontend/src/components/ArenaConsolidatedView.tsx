@@ -10,7 +10,7 @@ interface Props {
 type Tab = 'battle' | 'leaderboard' | 'analysis'
 
 export default function ArenaConsolidatedView({ initialAnalysisRunIds = [] }: Props) {
-  const [tab, setTab] = useState<Tab>('battle')
+  const [tab, setTab] = useState<Tab>(initialAnalysisRunIds.length > 0 ? 'analysis' : 'battle')
 
   return (
     <div className="h-full flex flex-col overflow-hidden">

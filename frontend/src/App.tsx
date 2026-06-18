@@ -22,6 +22,7 @@ export default function App() {
   const [analysisRunIds, setAnalysisRunIds] = useState<string[]>([])
   const [evalRightTab, setEvalRightTab] = useState<'queue' | 'results'>('queue')
   const unsubRef = useRef<(() => void) | null>(null)
+  const justSelectedJobRef = useRef(false)
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const refreshJobs    = useCallback(() => fetchJobs().then(setJobs), [])
@@ -42,6 +43,7 @@ export default function App() {
     setParam('id', jobId)
     setLogs([])
     unsubRef.current?.()
+    justSelectedJobRef.current = true
     unsubRef.current = streamLogs(
       jobId,
       (line) => setLogs(prev => [...prev.slice(-500), line]),
@@ -52,6 +54,10 @@ export default function App() {
   // Re-attach log stream when navigating back to /eval?id=xxx
   useEffect(() => {
     if (view === 'eval' && params.get('id')) {
+      if (justSelectedJobRef.current) {
+        justSelectedJobRef.current = false
+        return
+      }
       const id = params.get('id')!
       unsubRef.current?.()
       unsubRef.current = streamLogs(
@@ -224,7 +230,7 @@ export default function App() {
             onSubmit={handleSubmit}
             onCancel={handleCancel}
             onReproduce={handleReproduce}
-            onNavigateAnalysis={(runIds) => { setAnalysisRunIds(runIds); navigate('arena') }}
+            onNavigateAnalysis={(runIds) => { setAnalysisRunIds(runIds); navigate('arena'); setTimeout(() => setAnalysisRunIds([]), 100) }}
             rightTab={evalRightTab}
             onRightTabChange={setEvalRightTab}
           />
