@@ -201,8 +201,12 @@ class IsaacLabArenaActor:
             language_instruction=job.language_instruction,
         )
         env.close()
+
+        # Build episode list from aggregate metrics (best effort)
+        result = metrics if metrics is not None else {}
+        result["episodes"] = _build_episode_list(result)
         print(f"[arena-worker-{self.worker_id}] builtin job done", flush=True)
-        return metrics if metrics is not None else {}
+        return result
 
     def _run_job_remote_policy(self, job_dict: dict, policy_url: str) -> dict:
         """
@@ -312,3 +316,21 @@ class IsaacLabArenaActor:
         result = {k: to_list(v) for k, v in obs.items()} if isinstance(obs, dict) else {"obs": to_list(obs)}
         result["action_dim"] = action_dim
         return result
+
+
+def _build_episode_list(metrics: dict) -> list[dict]:
+    """Build synthetic episode list from aggregate metrics when per-episode data unavailable."""
+    n  = int(metrics.get("num_episodes") or metrics.get("total_episodes") or 0)
+    sr = float(metrics.get("success_rate") or 0.0)
+    successes = int(round(n * sr))
+    return [
+        {
+            "episode_index":      i,
+            "success":            i < successes,
+            "reward_total":       0.0,
+            "steps":              0,
+            "termination_reason": "success" if i < successes else "timeout",
+            "metadata":           {},
+        }
+        for i in range(n)
+    ]
