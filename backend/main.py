@@ -129,6 +129,12 @@ async def _create_actors():
                 runtime_env=worker_runtime_env,
             ).remote(w["worker_id"], w["http_port"], w["livestream_port"])
 
+# ── System info ───────────────────────────────────────────────────────────────
+
+@app.get("/api/system/info")
+async def system_info():
+    return {"local_ip": hm.get_local_ip()}
+
 # ── Workers API ───────────────────────────────────────────────────────────────
 
 @app.get("/api/workers")

@@ -3,12 +3,26 @@ import asyncio
 import os
 import re
 import shlex
+import socket
 from datetime import datetime, timezone
 
 import paramiko
 from cryptography.fernet import Fernet
 
 from backend.db import db
+
+
+def get_local_ip() -> str:
+    """Return this machine's primary non-loopback IP address."""
+    override = os.environ.get("RAY_HEAD_IP", "")
+    if override and override != "127.0.0.1":
+        return override
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
 
 
 def _get_fernet() -> Fernet:
@@ -215,7 +229,6 @@ _EVAL_PYTHONPATH = os.environ.get(
 )
 _EVAL_ACTOR_MODULE = os.environ.get("EVAL_ACTOR_MODULE", "arena_actor")
 _EVAL_ACTOR_CLASS  = os.environ.get("EVAL_ACTOR_CLASS",  "IsaacLabArenaActor")
-_RAY_HEAD_IP       = os.environ.get("RAY_HEAD_IP", "127.0.0.1")
 
 
 async def deploy_worker(host_id: int) -> dict:
@@ -268,7 +281,7 @@ async def deploy_worker(host_id: int) -> dict:
         f"bash -c '"
         f"source /workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/setup_python_env.sh && "
         f"/workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/ray "
-        f"start --address={_RAY_HEAD_IP}:6379 --num-gpus=1 --block'"
+        f"start --address={get_local_ip()}:6379 --num-gpus=1 --block'"
     )
     await _ssh_run(**ssh, cmd=docker_cmd)
 

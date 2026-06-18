@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import type { Worker } from '../types'
 import { destroyWorker } from '../api'
 import HostsPanel from './HostsPanel'
@@ -8,13 +9,13 @@ interface Props {
   onRefresh:   () => void
 }
 
-const DOCKER_CMD = `docker run -d --runtime=nvidia --network=host \\
-  --gpus='"device=1"' \\
-  -e RAY_HEAD_IP=127.0.0.1 \\
-  -e RAY_HEAD_PORT=6379 \\
-  -v /home/disk/lrx:/home/disk/lrx \\
-  lw_benchhub:latest \\
-  bash -c "ray start --address=127.0.0.1:6379 --num-gpus=1"`
+function useLocalIp() {
+  const [ip, setIp] = useState('127.0.0.1')
+  useEffect(() => {
+    fetch('/api/system/info').then(r => r.json()).then(d => setIp(d.local_ip)).catch(() => {})
+  }, [])
+  return ip
+}
 
 function SimPlaceholder({ online }: { online: boolean }) {
   return (
@@ -45,6 +46,15 @@ function SimPlaceholder({ online }: { online: boolean }) {
 
 export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) {
   const anyOnline = workers.some(w => w.online)
+  const localIp   = useLocalIp()
+
+  const dockerCmd = `docker run -d --runtime=nvidia --network=host \\
+  --gpus='"device=1"' \\
+  -e RAY_HEAD_IP=${localIp} \\
+  -e RAY_HEAD_PORT=6379 \\
+  -v /home/disk/lrx:/home/disk/lrx \\
+  lw_benchhub:latest \\
+  bash -c "ray start --address=${localIp}:6379 --num-gpus=1"`
 
   return (
     <div className="overflow-y-auto p-5 space-y-5">
@@ -182,7 +192,7 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
           <span className="chip chip-env">Docker</span>
         </div>
         <pre className="bg-ink-950 border border-ink-800 rounded-lg p-3 text-[11px] text-success font-mono overflow-x-auto leading-6 whitespace-pre">
-{DOCKER_CMD}
+{dockerCmd}
         </pre>
       </div>
     </div>
