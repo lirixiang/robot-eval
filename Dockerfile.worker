@@ -1,0 +1,47 @@
+# Robot Eval Platform — Worker Image
+#
+# Base: official NVIDIA Isaac Lab (Isaac Sim 6.0 + Isaac Lab 3.0 included)
+# Pull from NGC (free account): https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-lab
+#
+# Build:
+#   docker build -f Dockerfile.worker -t robot-eval-worker:latest .
+#
+# Customize:
+#   To use your own eval code instead of isaaclab_arena, set in docker-compose:
+#     EVAL_ACTOR_MODULE=my_package.my_actor
+#     EVAL_ACTOR_CLASS=MyActor
+#   and install your package in the RUN block below.
+
+ARG ISAAC_LAB_VERSION=2.3.0
+FROM nvcr.io/nvidia/isaac-lab:${ISAAC_LAB_VERSION}
+
+# Isaac Lab ships its own Python at this path — use it for everything
+# so that `import isaacsim` and `import omni` work inside Ray actors.
+ARG PYTHON=/isaac-sim/kit/python/bin/python3.12
+
+# Install Ray (must use Isaac Lab's Python, not system Python)
+RUN ${PYTHON} -m pip install --no-cache-dir \
+    "ray[default]>=2.9" \
+    Pillow
+
+# ── Default eval backend: isaaclab_arena ─────────────────────────────────
+# isaaclab_arena is an open-source third-party project built on Isaac Lab.
+# Replace or remove this block to use your own eval backend.
+#
+# Option A — install from GitHub (recommended for open-source users):
+# RUN ${PYTHON} -m pip install --no-cache-dir \
+#     "git+https://github.com/<org>/isaaclab_arena.git"
+#
+# Option B — mount local checkout at runtime (for development):
+# Add to docker-compose volumes: - /path/to/isaaclab_arena:/workspaces/isaaclab_arena
+# and set EVAL_PYTHONPATH=/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments
+#
+# The default configuration below expects isaaclab_arena to be mounted
+# at /workspaces/isaaclab_arena (same as the colleague's image).
+# Uncomment the install line above once the package has a public release.
+
+# EVAL_ACTOR_MODULE / EVAL_ACTOR_CLASS control which actor class is loaded.
+# Defaults match the bundled isaaclab_arena reference implementation.
+ENV EVAL_ACTOR_MODULE="arena_actor" \
+    EVAL_ACTOR_CLASS="IsaacLabArenaActor" \
+    EVAL_PYTHONPATH="/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments"

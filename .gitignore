@@ -2,4 +2,11 @@ results/
 __pycache__/
 *.pyc
 *.mp4
-*.json
+*.egg-info/
+.claude/settings.json
+platform/backend/jobs.db
+backend/jobs.db
+.env
+frontend/node_modules/
+data/
+*.db
