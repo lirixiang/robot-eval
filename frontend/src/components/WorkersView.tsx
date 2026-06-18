@@ -162,7 +162,7 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
                     title="销毁 Worker"
                     onClick={async () => {
                       if (!confirm(`销毁 Worker #${w.id}？`)) return
-                      await destroyWorker((w as any).host_id ?? 0, w.id)
+                      await destroyWorker(w.host_id, w.id)
                       onRefresh()
                     }}
                   >
