@@ -1,7 +1,7 @@
 from __future__ import annotations
-import random, time, uuid, logging
+import uuid, logging
 import asyncpg
-from backend.db.queries import jobs as jq, runs as rq, episodes as eq
+from backend.db.queries import jobs as jq, runs as rq
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,11 @@ class JobEngine:
         original = await jq.get_job(self._pool, job_id)
         if not original:
             raise ValueError(f"Job {job_id} not found")
+        # Fix 4: Preserve seed from last run so reproduction is deterministic
+        last_run = await rq.latest_run_for_job(self._pool, job_id)
+        policy_config = dict(original.get("policy_config") or {})
+        if last_run and last_run.get("seed") is not None:
+            policy_config["_reproduce_seed"] = last_run["seed"]
         clone_id = uuid.uuid4().hex[:8]
         clone = await jq.create_job(
             self._pool, id=clone_id,
@@ -43,13 +48,13 @@ class JobEngine:
             template_id=original.get("template_id"),
             model_name=original.get("model_name"),
             submitter=original.get("submitter"),
-            policy_config=original.get("policy_config", {}),
+            policy_config=policy_config,
             policy_server_url=original.get("policy_server_url", ""),
             max_retries=original.get("max_retries", 3),
             timeout_s=original.get("timeout_s", 3600),
             description=f"Reproduced from {job_id}",
         )
-        await self._scheduler.enqueue(clone_id)
+        await self._scheduler.enqueue(clone["id"])
         return clone
 
     async def get_regression(self, job_id: str) -> dict:

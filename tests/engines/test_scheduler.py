@@ -50,7 +50,7 @@ async def test_scheduler_dispatches_to_runner(pool):
                 break
 
         job = await jq.get_job(pool, jid)
-        assert job["status"] in ("done", "running")
+        assert job["status"] == "done"
 
 @pytest.mark.asyncio(loop_scope="module")
 async def test_scheduler_cancelled_job_skipped(pool):

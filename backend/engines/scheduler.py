@@ -45,77 +45,79 @@ class JobScheduler:
             return
 
     async def _run_job(self, job_id: str, actor_name: str) -> None:
-        job = await jq.get_job(self._pool, job_id)
-        if not job or job["status"] == "cancelled":
-            await self._free_actors.put(actor_name)
-            return
-
-        run_id  = uuid.uuid4().hex[:8]
-        attempt = job.get("retry_count", 0)
-        seed    = random.randint(0, 2**31)
-
-        await jq.update_job_status(self._pool, job_id, "running")
-        run = await rq.create_run(self._pool, id=run_id, job_id=job_id,
-                                   attempt=attempt, seed=seed)
-        await rq.update_run(self._pool, run_id, status="running",
-                             worker_id=_actor_worker_id(actor_name),
-                             started_at=time.time())
-        await jq.append_log(self._pool, job_id,
-                             f"分配 {actor_name} (attempt {attempt})")
-
+        # Fix 2: wrap entire body in try/finally so actor is always returned
         try:
-            runner = _build_runner(job, actor_name)
-            result = await asyncio.wait_for(
-                runner.run(job, seed=seed),
-                timeout=job.get("timeout_s", 3600),
-            )
-            t_end = time.time()
-            await rq.update_run(
-                self._pool, run_id, status="done",
-                metrics=result.metrics,
-                elapsed_s=result.elapsed_s,
-                finished_at=t_end,
-            )
-            if result.episodes:
-                await eq.insert_episodes(
-                    self._pool, run_id,
-                    [_ep_to_dict(ep) for ep in result.episodes],
-                )
-            await jq.update_job_status(self._pool, job_id, "done")
-            await jq.append_log(self._pool, job_id,
-                                  f"完成 metrics={result.metrics}")
-            logger.info("job.done", extra={"job_id": job_id, "run_id": run_id})
+            job = await jq.get_job(self._pool, job_id)
+            if not job or job["status"] == "cancelled":
+                return   # actor freed in finally
 
-        except asyncio.TimeoutError:
-            await _handle_failure(self._pool, job_id, run_id,
-                                   "timeout", job, self._job_queue)
-        except Exception as exc:
-            await _handle_failure(self._pool, job_id, run_id,
-                                   str(exc), job, self._job_queue)
+            run_id  = uuid.uuid4().hex[:8]
+            attempt = job.get("retry_count", 0)
+            seed    = random.randint(0, 2**31)
+
+            # Fix 4 (seed preservation): use _reproduce_seed from policy_config if present
+            if (pc := job.get("policy_config") or {}).get("_reproduce_seed") is not None:
+                seed = int(pc["_reproduce_seed"])
+
+            await jq.update_job_status(self._pool, job_id, "running")
+            await rq.create_run(self._pool, id=run_id, job_id=job_id,
+                                 attempt=attempt, seed=seed)
+            await rq.update_run(self._pool, run_id, status="running",
+                                 worker_id=_actor_worker_id(actor_name),
+                                 started_at=time.time())
+            await jq.append_log(self._pool, job_id,
+                                 f"分配 {actor_name} (attempt {attempt})")
+
+            try:
+                # Fix 1: _build_runner returns (runner, config); pass config to run()
+                runner, run_config = _build_runner(job, actor_name)
+                result = await asyncio.wait_for(
+                    runner.run(run_config, seed=seed),
+                    timeout=job.get("timeout_s", 3600),
+                )
+                t_end = time.time()
+                await rq.update_run(
+                    self._pool, run_id, status="done",
+                    metrics=result.metrics,
+                    elapsed_s=result.elapsed_s,
+                    finished_at=t_end,
+                )
+                if result.episodes:
+                    await eq.insert_episodes(
+                        self._pool, run_id,
+                        [_ep_to_dict(ep) for ep in result.episodes],
+                    )
+                await jq.update_job_status(self._pool, job_id, "done")
+                await jq.append_log(self._pool, job_id,
+                                      f"完成 metrics={result.metrics}")
+                logger.info("job.done", extra={"job_id": job_id, "run_id": run_id})
+
+            except asyncio.TimeoutError:
+                await _handle_failure(self._pool, job_id, run_id,
+                                       "timeout", job, self._job_queue)
+            except Exception as exc:
+                await _handle_failure(self._pool, job_id, run_id,
+                                       str(exc), job, self._job_queue)
         finally:
             await self._free_actors.put(actor_name)
 
 def _build_runner(job: dict, actor_name: str):
-    """Build the appropriate runner for this job."""
+    """Build the appropriate runner for this job. Returns (runner, config_for_run)."""
     policy_url = job.get("policy_server_url", "")
+    config = {
+        "actor_name": actor_name,
+        "arena_env_args": job.get("arena_env_args", {}),
+        "num_envs":     job.get("num_envs", 1),
+        "num_episodes": job.get("num_episodes", 10),
+        "num_steps":    job.get("num_steps"),
+        "policy_type":  job.get("policy_type", "zero_action"),
+        "policy_config": job.get("policy_config") or {},
+        "name":         job.get("name", ""),
+    }
     if policy_url:
-        config = {
-            "actor_name": actor_name,
-            "policy_server_url": policy_url,
-            **(job.get("policy_config") or {}),
-            "arena_env_args": job.get("arena_env_args", {}),
-        }
-    else:
-        config = {
-            "actor_name": actor_name,
-            **(job.get("policy_config") or {}),
-            "arena_env_args": job.get("arena_env_args", {}),
-            "num_envs":     job.get("num_envs", 1),
-            "num_episodes": job.get("num_episodes", 10),
-            "num_steps":    job.get("num_steps"),
-            "policy_type":  job.get("policy_type", "zero_action"),
-        }
-    return get_runner("isaaclab", config)
+        config["policy_server_url"] = policy_url
+    runner = get_runner("isaaclab", config)
+    return runner, config
 
 async def _handle_failure(pool, job_id, run_id, error, job, queue):
     await rq.update_run(pool, run_id, status="failed",
@@ -126,8 +128,11 @@ async def _handle_failure(pool, job_id, run_id, error, job, queue):
         await jq.update_job_status(pool, job_id, "retry_pending")
         await jq.append_log(pool, job_id,
                               f"失败，{backoff}s 后重试 (attempt {retry_count})")
-        await asyncio.sleep(backoff)
-        await queue.put(job_id)
+        # Fix 3: schedule delayed re-enqueue without blocking the current actor
+        async def _delayed_enqueue():
+            await asyncio.sleep(backoff)
+            await queue.put(job_id)
+        asyncio.create_task(_delayed_enqueue())
     else:
         await jq.update_job_status(pool, job_id, "failed_final")
         await jq.append_log(pool, job_id, f"ERROR: {error}")
