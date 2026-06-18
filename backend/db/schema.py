@@ -144,9 +144,20 @@ async def create_tables(pool: asyncpg.Pool) -> None:
             ts      DOUBLE PRECISION
         );
         """)
-        # Migration: add config column to existing tables
+        # Migrations: add columns that didn't exist in older schema versions
         await conn.execute("""
-        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS config JSONB DEFAULT '{}';
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS config            JSONB DEFAULT '{}';
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS baseline_run_id   TEXT;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS name              TEXT;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS model_name        TEXT;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS submitter         TEXT;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS policy_config     JSONB DEFAULT '{}';
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS policy_server_url TEXT DEFAULT '';
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS template_id       INTEGER;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS max_retries       INTEGER DEFAULT 3;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS timeout_s         INTEGER DEFAULT 3600;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS retry_count       INTEGER DEFAULT 0;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description       TEXT;
         """)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_runs_job_id     ON runs(job_id);
