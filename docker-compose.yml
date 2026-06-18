@@ -1,0 +1,149 @@
+# ── Ray + Isaac Lab 分布式评测平台 ─────────────────────────────────────────────
+#
+# 架构：ray-head（独立，无 GPU）+ isaac-lab-worker-*（有 GPU）
+#       所有组件统一使用 Ray 2.52.1（与 Isaac Lab 内置版本一致）
+#
+# 自定义 eval 后端（替换 isaaclab_arena）：
+#   设置 EVAL_ACTOR_MODULE / EVAL_ACTOR_CLASS / EVAL_PYTHONPATH
+#
+# 扩容多节点，在新机器执行：
+#   PY=/workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/python3.12
+#   RAY=/workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/ray
+#   $PY -m pip install -q filelock requests virtualenv pyyaml attrs
+#   $RAY start --address=<主节点IP>:6379 --num-gpus=<N> --block
+
+x-isaac-lab-base: &isaac-lab-base
+  image: isaaclab_arena:latest
+  # 开源版本改用官方镜像，取消注释以下 build 并注释上面 image：
+  # build:
+  #   context: .
+  #   dockerfile: Dockerfile.worker
+  #   args:
+  #     ISAAC_LAB_VERSION: "2.3.0"
+  network_mode: host
+  environment:
+    - NVIDIA_DRIVER_CAPABILITIES=all
+    - ACCEPT_EULA=Y
+    - PRIVACY_CONSENT=Y
+  volumes:
+    - /home/disk/ssl/isaac-sim5.0/cache/ov:/root/.cache/ov
+    - /home/disk/ssl/isaac-sim5.0/cache/kit:/isaac-sim/kit/cache
+    - /home/disk/ssl/isaac-sim5.0/cache/glcache:/root/.cache/nvidia/GLCache
+    - /home/disk/ssl/isaac-sim5.0/cache/pip:/root/.cache/pip
+    - /home/disk/ssl/isaac-sim5.0/cache/computecache:/root/.nv/ComputeCache
+    - /home/disk/ssl/isaac-sim5.0/data:/root/.local/share/ov/data
+    - /home/disk/ssl/isaac-sim5.0/pkg:/root/.local/share/ov/pkg
+    - /home/disk/ssl/isaac-sim5.0/logs:/root/.nvidia-omniverse/logs
+    - /home/disk/ssl/isaacsim_assets:/isaac-sim/isaacsim_assets:ro
+    - /home/disk/ssl/models:/isaac-sim/models:ro
+    - ./isaac-sim:/workspace/robot-eval/isaac-sim:ro
+    - ./results:/workspace/robot-eval/results
+  entrypoint: ""
+  # source setup_python_env.sh 让 Ray raylet 及所有 actor 进程继承完整 PYTHONPATH（含 torch/numpy）
+  command: >-
+    bash -c "
+    source /workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/setup_python_env.sh &&
+    /workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/python3.12
+    -m pip install -q filelock requests virtualenv pyyaml attrs toml tomli 2>/dev/null ;
+    /workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/ray
+    start --address=127.0.0.1:6379 --num-gpus=1 --block"
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+  shm_size: 8gb
+  ulimits:
+    memlock: -1
+    stack: 67108864
+  restart: unless-stopped
+
+services:
+  # ── PostgreSQL 数据库 ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: robot-eval-db
+    network_mode: host
+    environment:
+      POSTGRES_DB: robot_eval
+      POSTGRES_USER: eval
+      POSTGRES_PASSWORD: eval_secret
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # ── Ray Head（调度器 + Dashboard，无 GPU）────────────────────────────────────
+  # 用 isaaclab_arena 镜像启动，与 worker 的 Python 版本完全一致
+  ray-head:
+    image: isaaclab_arena:latest
+    container_name: ray-head
+    network_mode: host
+    entrypoint: ""
+    command: >-
+      bash -c "
+      /workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/python3.12
+      -m pip install -q filelock requests virtualenv pyyaml attrs 2>/dev/null ;
+      /workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/ray
+      start --head --port=6379 --dashboard-host=0.0.0.0 --dashboard-port=8265
+      --ray-client-server-port=10001 --num-cpus=2 --num-gpus=0 --block"
+    restart: unless-stopped
+
+  # ── 评测平台（后端 API + 前端界面）──────────────────────────────────────────
+  platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: robot-eval-platform:latest
+    container_name: eval-platform
+    network_mode: host
+    volumes:
+      - ./scripts:/app/scripts:ro
+      - ./configs:/app/configs:ro
+      - ./results:/app/results
+      - ./backend:/app/backend
+      - ./frontend/dist:/app/frontend/dist:ro
+      - ./.env:/app/.env
+    environment:
+      - PYTHONPATH=/app:/app/backend
+      - RAY_ADDRESS=ray://127.0.0.1:10001
+      - DATABASE_URL=postgresql://eval:eval_secret@127.0.0.1:5432/robot_eval
+      - EVAL_ACTOR_MODULE=arena_actor
+      - EVAL_ACTOR_CLASS=IsaacLabArenaActor
+      - EVAL_PYTHONPATH=/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments
+    command: /app/backend/entrypoint.sh
+    depends_on:
+      - postgres
+      - ray-head
+    restart: unless-stopped
+
+  # ── Isaac Lab Worker 0（GPU 0）────────────────────────────────────────────────
+  isaac-lab-worker-0:
+    <<: *isaac-lab-base
+    container_name: isaac-lab-worker-0
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - WORKER_ID=0
+      - HTTP_PORT=8042
+      - LIVESTREAM_PORT=49200
+      - EVAL_ACTOR_MODULE=arena_actor
+      - EVAL_ACTOR_CLASS=IsaacLabArenaActor
+      - EVAL_PYTHONPATH=/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments
+    depends_on:
+      - ray-head
+
+  # ── Isaac Lab Worker 1（GPU 1，取消注释以启用）────────────────────────────────
+  # isaac-lab-worker-1:
+  #   <<: *isaac-lab-base
+  #   container_name: isaac-lab-worker-1
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=1
+  #     - WORKER_ID=1
+  #     - HTTP_PORT=8043
+  #     - LIVESTREAM_PORT=49201
+  #     - EVAL_ACTOR_MODULE=arena_actor
+  #     - EVAL_ACTOR_CLASS=IsaacLabArenaActor
+  #     - EVAL_PYTHONPATH=/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments
+  #   depends_on:
+  #     - ray-head
