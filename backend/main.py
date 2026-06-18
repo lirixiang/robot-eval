@@ -133,7 +133,48 @@ async def _create_actors():
 
 @app.get("/api/system/info")
 async def system_info():
-    return {"local_ip": hm.get_local_ip()}
+    import os, multiprocessing
+    local_ip = hm.get_local_ip()
+
+    # CPU count
+    try:
+        cpu_count = multiprocessing.cpu_count()
+    except Exception:
+        cpu_count = 0
+
+    # Memory (total GB)
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    mem_kb = int(line.split()[1])
+                    mem_gb = round(mem_kb / 1024 / 1024)
+                    break
+            else:
+                mem_gb = 0
+    except Exception:
+        mem_gb = 0
+
+    # GPU count — /proc/driver/nvidia/gpus is visible even without device access
+    try:
+        import subprocess
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            timeout=5, stderr=subprocess.DEVNULL,
+        )
+        gpu_count = len([l for l in out.decode().strip().splitlines() if l.strip()])
+    except Exception:
+        try:
+            gpu_count = len(list(os.scandir("/proc/driver/nvidia/gpus")))
+        except Exception:
+            gpu_count = 0
+
+    return {
+        "local_ip":  local_ip,
+        "cpu_count": cpu_count,
+        "mem_gb":    mem_gb,
+        "gpu_count": gpu_count,
+    }
 
 # ── Workers API ───────────────────────────────────────────────────────────────
 

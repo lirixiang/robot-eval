@@ -9,15 +9,19 @@ interface Props {
   onRefresh:   () => void
 }
 
-function useLocalIp() {
-  const [ip, setIp] = useState('127.0.0.1')
+interface SystemInfo { local_ip: string; cpu_count: number; mem_gb: number; gpu_count: number }
+
+function useSystemInfo(): SystemInfo {
+  const [info, setInfo] = useState<SystemInfo>(
+    { local_ip: '...', cpu_count: 0, mem_gb: 0, gpu_count: 0 }
+  )
   useEffect(() => {
     fetch('/api/system/info')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.local_ip) setIp(d.local_ip) })
+      .then(d => { if (d?.local_ip) setInfo(d) })
       .catch(() => {})
   }, [])
-  return ip
+  return info
 }
 
 function SimPlaceholder({ online }: { online: boolean }) {
@@ -49,15 +53,15 @@ function SimPlaceholder({ online }: { online: boolean }) {
 
 export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) {
   const anyOnline = workers.some(w => w.online)
-  const localIp   = useLocalIp()
+  const sys        = useSystemInfo()
 
   const dockerCmd = `docker run -d --runtime=nvidia --network=host \\
   --gpus='"device=1"' \\
-  -e RAY_HEAD_IP=${localIp} \\
+  -e RAY_HEAD_IP=${sys.local_ip} \\
   -e RAY_HEAD_PORT=6379 \\
   -v /home/disk/lrx:/home/disk/lrx \\
   lw_benchhub:latest \\
-  bash -c "ray start --address=${localIp}:6379 --num-gpus=1"`
+  bash -c "ray start --address=${sys.local_ip}:6379 --num-gpus=1"`
 
   return (
     <div className="overflow-y-auto p-5 space-y-5">
@@ -69,17 +73,17 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
           <span className={`chip ${anyOnline ? 'chip-run' : 'chip-fail'}`}>
             {anyOnline ? '在线' : '离线'}
           </span>
-          <span className="font-mono text-[11px] text-ink-500">127.0.0.1:8265</span>
-          <a href="http://127.0.0.1:8265" target="_blank" rel="noreferrer" className="btn-sm">
+          <span className="font-mono text-[11px] text-ink-500">{sys.local_ip}:8265</span>
+          <a href={`http://${sys.local_ip}:8265`} target="_blank" rel="noreferrer" className="btn-sm">
             Ray Dashboard <i className="fas fa-arrow-up-right-from-square ml-1 text-[9px]" />
           </a>
         </div>
         <div className="grid grid-cols-4 gap-3">
           {[
-            { label: '节点数', value: String(workers.length), icon: 'fa-server' },
-            { label: 'CPU 核', value: '32', icon: 'fa-microchip' },
-            { label: 'GPU 数', value: String(workers.filter(w => w.online).length), icon: 'fa-gpu' },
-            { label: '内存', value: '128 GB', icon: 'fa-memory' },
+            { label: '节点数', value: String(workers.length),                    icon: 'fa-server' },
+            { label: 'CPU 核', value: sys.cpu_count ? String(sys.cpu_count) : '—', icon: 'fa-microchip' },
+            { label: 'GPU 数', value: sys.gpu_count ? String(sys.gpu_count) : String(workers.filter(w => w.online).length), icon: 'fa-gpu' },
+            { label: '内存',   value: sys.mem_gb    ? `${sys.mem_gb} GB` : '—',   icon: 'fa-memory' },
           ].map(s => (
             <div key={s.label} className="bg-ink-950 rounded-lg p-3 border border-ink-800">
               <div className="flex items-center gap-1.5 text-ink-500 text-[10px] mb-1">
