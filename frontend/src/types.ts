@@ -49,6 +49,7 @@ export interface Metrics {
 // ── Worker (returned from /api/workers) ───────────────────────────────────────
 export interface Worker {
   id:              number
+  host_id:         number
   host:            string
   http_port:       number
   livestream_port: number
