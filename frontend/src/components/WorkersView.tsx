@@ -80,9 +80,10 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
       <div className="form-section">
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <span className="tag text-ink-400">Ray 集群</span>
-          <span className={`chip ${rayStatus?.online ? 'chip-run' : 'chip-fail'}`}>
-            {rayStatus?.online ? '在线' : rayStatus === null ? '查询中...' : '离线'}
-          </span>
+          {/* Only show status badge when offline — normal operation is silent */}
+          {rayStatus !== null && !rayStatus.online && (
+            <span className="chip chip-fail">离线</span>
+          )}
           <span className="font-mono text-[11px] text-ink-500">{sys.local_ip}:8265</span>
           <a href={`http://${sys.local_ip}:8265`} target="_blank" rel="noreferrer" className="btn-sm">
             Ray Dashboard <i className="fas fa-arrow-up-right-from-square ml-1 text-[9px]" />
