@@ -73,6 +73,14 @@ async def lifespan(app: FastAPI):
     # Create Ray actors for running workers
     asyncio.create_task(_create_actors())
 
+    # Background loop: sync Ray node state → DB every 30s
+    async def _watch_ray_workers():
+        while True:
+            await asyncio.sleep(30)
+            await _sync_ray_workers()
+
+    asyncio.create_task(_watch_ray_workers())
+
     yield
     await db.close()
 
@@ -90,12 +98,10 @@ async def _sync_ray_workers():
         logger.warning("ray.nodes_unavailable", error=str(exc))
         return
 
-    gpu_nodes = [n for n in nodes if n.get("Alive") and n.get("Resources", {}).get("GPU", 0) >= 1]
-    if not gpu_nodes:
-        logger.info("ray.no_gpu_nodes_found")
-        return
+    alive_gpu_nodes = [n for n in nodes if n.get("Alive") and n.get("Resources", {}).get("GPU", 0) >= 1]
+    all_gpu_nodes   = [n for n in nodes if n.get("Resources", {}).get("GPU", 0) >= 1]
 
-    # Ensure a local host row exists (id=1 reserved for localhost)
+    # Ensure a local host row exists
     try:
         hosts = await db.list_hosts()
         if not hosts:
@@ -109,18 +115,18 @@ async def _sync_ray_workers():
         logger.warning("ray.sync_host_error", error=str(exc))
         return
 
-    for idx, node in enumerate(gpu_nodes):
-        worker_id   = idx
-        gpu_count   = int(node["Resources"].get("GPU", 1))
-        http_port   = 8042 + idx
-        live_port   = 49200 + idx
-        cname       = f"isaac-lab-worker-{idx}"
-
+    # Register/update alive GPU nodes
+    for idx, node in enumerate(alive_gpu_nodes):
+        worker_id = idx
+        http_port = 8042 + idx
+        live_port = 49200 + idx
+        cname     = f"isaac-lab-worker-{idx}"
         try:
             existing = await db.get_remote_worker(worker_id)
             if existing:
-                await db.update_worker_status(worker_id, "running")
-                logger.info("ray.worker_updated", worker_id=worker_id)
+                if existing.get("status") != "running":
+                    await db.update_worker_status(worker_id, "running")
+                    logger.info("ray.worker_came_online", worker_id=worker_id)
             else:
                 await db.insert_remote_worker(
                     host_id=host_id, worker_id=worker_id,
@@ -131,7 +137,18 @@ async def _sync_ray_workers():
         except Exception as exc:
             logger.warning("ray.worker_sync_error", worker_id=worker_id, error=str(exc))
 
-    logger.info("ray.workers_synced", count=len(gpu_nodes))
+    # Mark nodes that disappeared from Ray as stopped
+    alive_ids = set(range(len(alive_gpu_nodes)))
+    try:
+        all_db_workers = await db.list_remote_workers(status="running")
+        for w in all_db_workers:
+            if w["worker_id"] not in alive_ids:
+                await db.update_worker_status(w["worker_id"], "stopped")
+                logger.info("ray.worker_went_offline", worker_id=w["worker_id"])
+    except Exception as exc:
+        logger.warning("ray.worker_offline_check_error", error=str(exc))
+
+    logger.info("ray.workers_synced", alive=len(alive_gpu_nodes), total_gpu=len(all_gpu_nodes))
 
 
 async def _get_workers_meta() -> list[dict]:
