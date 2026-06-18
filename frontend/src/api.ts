@@ -144,9 +144,36 @@ export async function fetchTrend(model: string, env: string, days = 30): Promise
   return r.json()
 }
 
-// TODO: Phase 4 — used by TemplatesView (not yet implemented)
 export async function fetchTemplates(): Promise<Template[]> {
   const r = await fetch(`${BASE}/templates`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function createTemplate(req: {
+  name: string; version: string; runner_type: string;
+  config_yaml: string; description?: string;
+}): Promise<Template> {
+  const r = await fetch(`${BASE}/templates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function deleteTemplate(id: number): Promise<void> {
+  const r = await fetch(`${BASE}/templates/${id}`, { method: 'DELETE' })
+  if (!r.ok) throw new Error(await r.text())
+}
+
+export async function validateYaml(config_yaml: string): Promise<{ valid: boolean; errors: string[] }> {
+  const r = await fetch(`${BASE}/templates/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config_yaml }),
+  })
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }

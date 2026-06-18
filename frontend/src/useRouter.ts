@@ -11,6 +11,7 @@ const PATH_MAP: Record<string, ViewName> = {
   '/leaderboard': 'leaderboard',
   '/analysis':    'analysis',
   '/arena':       'arena',
+  '/templates':   'templates',
 }
 
 const VIEW_PATH: Record<ViewName, string> = {
@@ -22,6 +23,7 @@ const VIEW_PATH: Record<ViewName, string> = {
   leaderboard: '/leaderboard',
   analysis:    '/analysis',
   arena:       '/arena',
+  templates:   '/templates',
 }
 
 function currentView(): ViewName {

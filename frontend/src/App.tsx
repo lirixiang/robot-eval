@@ -11,8 +11,9 @@ import StreamModal    from './components/StreamModal'
 import LeaderboardView from './components/LeaderboardView'
 import AnalysisView   from './components/AnalysisView'
 import ArenaView      from './components/ArenaView'
+import TemplatesView  from './components/TemplatesView'
 
-export type ViewName = 'dashboard' | 'submit' | 'jobs' | 'results' | 'workers' | 'leaderboard' | 'analysis' | 'arena'
+export type ViewName = 'dashboard' | 'submit' | 'jobs' | 'results' | 'workers' | 'leaderboard' | 'analysis' | 'arena' | 'templates'
 
 export default function App() {
   const { view, params, navigate, setParam } = useRouter()
@@ -97,6 +98,7 @@ export default function App() {
       if (e.key === 'l' || e.key === 'L') navigate('leaderboard')
       if (e.key === 'a' || e.key === 'A') navigate('analysis')
       if (e.key === 'r' || e.key === 'R') navigate('arena')
+      if (e.key === 't' || e.key === 'T') navigate('templates')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -116,6 +118,7 @@ export default function App() {
     { id: 'leaderboard', label: '榜单',    icon: 'fa-trophy' },
     { id: 'analysis',    label: '分析',    icon: 'fa-chart-line' },
     { id: 'arena',       label: '竞技场',  icon: 'fa-swords' },
+    { id: 'templates',   label: '模板',    icon: 'fa-file-code' },
   ]
 
   // ── Aggregate metrics ──────────────────────────────────────────────────────
@@ -250,6 +253,9 @@ export default function App() {
         {view === 'arena' && (
           <ArenaView />
         )}
+        {view === 'templates' && (
+          <TemplatesView />
+        )}
       </main>
 
       {/* ── FOOTER ─────────────────────────────────────────────────────── */}
@@ -271,6 +277,7 @@ export default function App() {
         <span><kbd className="kbd">L</kbd> 榜单</span>
         <span><kbd className="kbd">A</kbd> 分析</span>
         <span><kbd className="kbd">R</kbd> 竞技场</span>
+        <span><kbd className="kbd">T</kbd> 模板</span>
         <span className="text-ink-600">RoboEval · Ray + isaaclab_arena</span>
       </footer>
 
