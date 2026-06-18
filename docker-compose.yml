@@ -84,7 +84,10 @@ services:
     command: >-
       bash -c "
       /workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/python3.12
-      -m pip install -q filelock requests virtualenv pyyaml attrs 2>/dev/null ;
+      -m pip install -q filelock requests virtualenv pyyaml attrs
+      multidict aiohttp aiohttp-cors opencensus colorful py-spy
+      opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp
+      opentelemetry-exporter-prometheus 'pydantic<2' 2>/dev/null ;
       /workspaces/isaaclab_arena/submodules/IsaacLab/_isaac_sim/kit/python/bin/ray
       start --head --port=6379 --dashboard-host=0.0.0.0 --dashboard-port=8265
       --ray-client-server-port=10001 --num-cpus=2 --num-gpus=0 --block"
