@@ -7,7 +7,14 @@ logger = structlog.get_logger(__name__)
 
 
 class SubprocessRunner(BaseRunner):
-    """Generic CLI runner — executes any command and parses stdout for metrics."""
+    """Generic CLI runner — executes any command and parses stdout for metrics.
+
+    SECURITY: The command is executed directly without shell interpretation.
+    Only use this runner with trusted template configurations. In production
+    deployments, restrict template creation to authorized users.
+    The executable is not validated against an allowlist — it is the operator's
+    responsibility to restrict access to the /api/templates endpoint.
+    """
 
     def __init__(self, config: dict):
         self.command           = config["command"]               # list[str]
@@ -20,7 +27,7 @@ class SubprocessRunner(BaseRunner):
         return True  # command existence not pre-checked
 
     async def run(self, config: dict, seed: int) -> RunResult:
-        env = {**os.environ, **self.env_extra}
+        env = {**os.environ, **self.env_extra, "EVAL_SEED": str(seed)}
         t0 = time.time()
         proc = await asyncio.create_subprocess_exec(
             *self.command,

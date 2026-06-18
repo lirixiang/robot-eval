@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Callable
 from backend.runners.base import BaseRunner
 
 def _lazy_isaaclab():
@@ -18,7 +19,7 @@ def _lazy_subprocess():
     return SubprocessRunner
 
 _REGISTRY: dict[str, type[BaseRunner]] = {}
-_LAZY: dict[str, callable] = {
+_LAZY: dict[str, Callable[[], type[BaseRunner]]] = {
     "isaaclab":      _lazy_isaaclab,
     "remote_policy": _lazy_remote_policy,
     "lmeval":        _lazy_lmeval,

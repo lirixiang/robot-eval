@@ -17,6 +17,11 @@ from backend.logging_config import configure_logging
 
 logger = structlog.get_logger(__name__)
 
+# Configure logging at import time so all modules get JSON formatting.
+# Skip in test environments to avoid clobbering structlog's default PrintLogger.
+if not os.environ.get("PYTEST_CURRENT_TEST"):
+    configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
+
 _DATABASE_URL    = os.environ.get("DATABASE_URL",
     "postgresql://eval:eval_secret@127.0.0.1:5432/robot_eval")
 _RAY_ADDRESS     = os.environ.get("RAY_ADDRESS", "ray://127.0.0.1:10001")
@@ -35,7 +40,6 @@ _ISAAC_LD  = ":".join([
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
     await init_db(_DATABASE_URL)
 
     # Init Ray

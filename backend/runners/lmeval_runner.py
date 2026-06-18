@@ -22,53 +22,58 @@ class LMEvalRunner(BaseRunner):
         return shutil.which("lm_eval") is not None or shutil.which("lm-eval") is not None
 
     async def run(self, config: dict, seed: int) -> RunResult:
-        output_dir = pathlib.Path(tempfile.mkdtemp()) / f"lmeval_{uuid.uuid4().hex[:8]}"
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        cmd = [
-            "lm_eval",
-            "--model", self.model,
-            "--tasks", ",".join(self.tasks),
-            "--num_fewshot", str(self.num_fewshot),
-            "--batch_size", str(self.batch_size),
-            "--output_path", str(output_dir),
-            "--seed", str(seed),
-        ]
-        if self.limit is not None:
-            cmd += ["--limit", str(self.limit)]
-        cmd += self.extra_args
-
-        t0 = time.time()
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        import os
+        tmp_root = tempfile.mkdtemp()
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=self.timeout_s
+            output_dir = pathlib.Path(tmp_root) / f"lmeval_{uuid.uuid4().hex[:8]}"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            cmd = [
+                "lm_eval",
+                "--model", self.model,
+                "--tasks", ",".join(self.tasks),
+                "--num_fewshot", str(self.num_fewshot),
+                "--batch_size", str(self.batch_size),
+                "--output_path", str(output_dir),
+                "--seed", str(seed),
+            ]
+            if self.limit is not None:
+                cmd += ["--limit", str(self.limit)]
+            cmd += self.extra_args
+
+            t0 = time.time()
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.communicate()
-            raise RuntimeError(f"lm_eval timed out after {self.timeout_s}s")
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(), timeout=self.timeout_s
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.communicate()
+                raise RuntimeError(f"lm_eval timed out after {self.timeout_s}s")
 
-        elapsed = time.time() - t0
+            elapsed = time.time() - t0
 
-        if proc.returncode != 0:
-            raise RuntimeError(
-                f"lm_eval exited with code {proc.returncode}: "
-                f"{stderr.decode(errors='replace')[:500]}"
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"lm_eval exited with code {proc.returncode}: "
+                    f"{stderr.decode(errors='replace')[:500]}"
+                )
+
+            metrics = _parse_lmeval_output(output_dir)
+            return RunResult(
+                metrics=metrics,
+                episodes=[],
+                elapsed_s=round(elapsed, 3),
+                seed=seed,
+                raw_output=stdout.decode(errors="replace")[:4096],
             )
-
-        metrics = _parse_lmeval_output(output_dir)
-        return RunResult(
-            metrics=metrics,
-            episodes=[],
-            elapsed_s=round(elapsed, 3),
-            seed=seed,
-            raw_output=stdout.decode(errors="replace")[:4096],
-        )
+        finally:
+            shutil.rmtree(tmp_root, ignore_errors=True)
 
 
 def _parse_lmeval_output(output_dir: pathlib.Path) -> dict:

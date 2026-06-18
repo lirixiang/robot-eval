@@ -34,6 +34,7 @@ export default function TemplatesView() {
   const [newDesc, setNewDesc]       = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [hasValidated, setHasValidated] = useState(false)
   const [saving, setSaving]         = useState(false)
   const [runMsg, setRunMsg]         = useState<string | null>(null)
 
@@ -45,6 +46,7 @@ export default function TemplatesView() {
   const handleValidate = async () => {
     const result = await validateYaml(editorYaml).catch(() => ({ valid: false, errors: ['Network error'] }))
     setValidationErrors(result.errors)
+    setHasValidated(true)
   }
 
   const handleSave = async () => {
@@ -113,7 +115,7 @@ export default function TemplatesView() {
       <div className="w-64 flex-shrink-0 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-ink-200">评测模板</span>
-          <button onClick={() => { setIsCreating(true); setSelected(null); setEditorYaml(STARTER_YAML); setValidationErrors([]) }}
+          <button onClick={() => { setIsCreating(true); setSelected(null); setEditorYaml(STARTER_YAML); setValidationErrors([]); setHasValidated(false) }}
                   className="text-[11px] px-2 py-1 bg-green-600 hover:bg-green-500 text-white rounded">
             + 新建
           </button>
@@ -124,7 +126,7 @@ export default function TemplatesView() {
           )}
           {templates.map(t => (
             <div key={t.id}
-                 onClick={() => { setSelected(t); setIsCreating(false); setEditorYaml(t.config_yaml) }}
+                 onClick={() => { setSelected(t); setIsCreating(false); setEditorYaml(t.config_yaml); setHasValidated(false) }}
                  className={`rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                    selected?.id === t.id && !isCreating
                      ? 'border-green-600/60 bg-green-950/20'
@@ -222,7 +224,7 @@ export default function TemplatesView() {
               ))}
             </div>
           )}
-          {validationErrors.length === 0 && editorYaml && !isCreating && (
+          {hasValidated && validationErrors.length === 0 && editorYaml && (
             <div className="px-3 py-1 bg-green-950/20 border-b border-green-900/30">
               <span className="text-green-500 text-[11px]">✓ YAML 有效</span>
             </div>
