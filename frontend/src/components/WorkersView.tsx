@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Worker } from '../types'
-import { destroyWorker, fetchRayStatus, type RayStatus } from '../api'
-import HostsPanel from './HostsPanel'
+import { fetchRayStatus, type RayStatus } from '../api'
 
 interface Props {
   workers:     Worker[]
@@ -77,7 +76,6 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
 
   return (
     <div className="overflow-y-auto p-5 space-y-5">
-      <HostsPanel onWorkersChanged={onRefresh} />
       {/* Ray cluster overview */}
       <div className="form-section">
         <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -188,11 +186,9 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
                   </button>
                   <button
                     className="btn-sm text-red-400 border-red-400/30 hover:bg-red-400/10"
-                    title="销毁 Worker"
-                    onClick={async () => {
-                      if (!confirm(`销毁 Worker #${w.id}？`)) return
-                      await destroyWorker(w.host_id, w.id)
-                      onRefresh()
+                    title="从 Ray 集群移除 Worker（需在 worker 机器上执行 ray stop）"
+                    onClick={() => {
+                      alert('请在 worker 机器上执行 ray stop 以移除该节点')
                     }}
                   >
                     <i className="fas fa-trash" />

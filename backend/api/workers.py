@@ -1,7 +1,6 @@
 from __future__ import annotations
 import structlog
 from fastapi import APIRouter, HTTPException
-from backend.db import db
 
 router = APIRouter(tags=["workers"])
 logger = structlog.get_logger(__name__)
@@ -71,15 +70,22 @@ async def ray_status():
 
 @router.get("/api/workers/{worker_id}/stream")
 async def worker_stream_info(worker_id: int):
-    w = await db.get_remote_worker(worker_id)
-    if not w:
-        raise HTTPException(404)
-    host_row = await db.get_host(w["host_id"])
-    host = host_row["host"] if host_row else "unknown"
+    """Return WebRTC stream info for a worker — derived from Ray node list."""
+    import ray
+    try:
+        nodes = ray.nodes()
+        alive_gpu = [n for n in nodes if n.get("Alive") and n.get("Resources", {}).get("GPU", 0) >= 1]
+    except Exception:
+        alive_gpu = []
+    if worker_id >= len(alive_gpu):
+        raise HTTPException(404, f"Worker {worker_id} not found")
+    node = alive_gpu[worker_id]
+    host = node.get("NodeManagerAddress", "127.0.0.1")
     return {
         "worker_id":       worker_id,
-        "http_port":       w["http_port"],
-        "livestream_port": w["livestream_port"],
+        "http_port":       8042 + worker_id,
+        "livestream_port": 49200 + worker_id,
         "host":            host,
-        "signaling_url":   f"ws://{host}:{w['livestream_port']}",
+        "signaling_url":   f"ws://{host}:{49200 + worker_id}",
     }
+
