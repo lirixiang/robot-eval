@@ -1,17 +1,9 @@
 import { useState, useEffect } from 'react'
 import { fetchLeaderboard, fetchArenaLeaderboard, fetchArenaEnvs, fetchWinMatrix } from '../api'
 import type { Leaderboard, LeaderboardRow, EloEntry, WinMatrixEntry } from '../types'
+import { DEFAULT_ENVS } from '../constants'
 
 type Tab = 'traditional' | 'elo'
-
-// Keep in sync with ArenaView.tsx DEFAULT_ENVS
-const DEFAULT_ENVS = [
-  'lift_object',
-  'pick_and_place_maple_table',
-  'kitchen_pick_and_place',
-  'sorting',
-  'press_button',
-]
 
 const MEDAL = ['🥇', '🥈', '🥉']
 

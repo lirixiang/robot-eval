@@ -78,6 +78,18 @@ async def get_match_runs(pool: asyncpg.Pool, match_id: str) -> dict[str, str]:
         )
     return {r["model"]: r["run_id"] for r in rows}
 
+async def list_model_matches(
+    pool: asyncpg.Pool, model_name: str, env_name: str
+) -> list[dict]:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT * FROM matches
+               WHERE env_name=$1 AND (model_a=$2 OR model_b=$2)
+               ORDER BY created_at DESC""",
+            env_name, model_name,
+        )
+    return [_row(r) for r in rows]
+
 async def win_matrix(pool: asyncpg.Pool, env_name: str) -> list[dict]:
     """Return aggregated win/loss/draw counts for all model pairs in env."""
     async with pool.acquire() as conn:

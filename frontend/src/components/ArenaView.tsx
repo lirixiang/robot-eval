@@ -1,14 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createMatch, fetchMatches, fetchArenaLeaderboard, fetchArenaEnvs } from '../api'
 import type { Match, EloEntry } from '../types'
-
-const DEFAULT_ENVS = [
-  'lift_object',
-  'pick_and_place_maple_table',
-  'kitchen_pick_and_place',
-  'sorting',
-  'press_button',
-]
+import { DEFAULT_ENVS } from '../constants'
 
 function EloBar({ rating, rd, ciLow, ciHigh }: { rating: number; rd: number; ciLow?: number; ciHigh?: number }) {
   const color = rating >= 1600 ? '#10b981' : rating >= 1400 ? '#d4a857' : '#6b7280'
@@ -74,7 +67,7 @@ export default function ArenaView() {
       }
     }).catch(() => {
       // Fall back to default envs list — backend arena routes may not be live yet
-      setEnvs(DEFAULT_ENVS)
+      setEnvs([...DEFAULT_ENVS])
     })
   }, [])
 

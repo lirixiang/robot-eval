@@ -1,7 +1,7 @@
 from __future__ import annotations
 import asyncio, logging, random, time, uuid
 import asyncpg
-from backend.elo.calculator import update_glicko2
+from backend.elo.calculator import update_glicko2, draw_glicko2
 from backend.elo.significance import bootstrap_ci, SignificanceResult
 from backend.db.queries import matches as mq, elo as eq
 
@@ -18,6 +18,7 @@ class ArenaEngine:
     def __init__(self, pool: asyncpg.Pool, job_engine):
         self._pool       = pool
         self._job_engine = job_engine  # JobEngine instance
+        self._pending_tasks: set = set()
 
     async def create_match(
         self, *,
@@ -73,9 +74,11 @@ class ArenaEngine:
         })
 
         # Background: wait for both jobs and judge
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._await_and_judge(match_id, job_a["id"], job_b["id"], env_name)
         )
+        self._pending_tasks.add(task)
+        task.add_done_callback(self._pending_tasks.discard)
         return match
 
     async def _await_and_judge(
@@ -161,20 +164,7 @@ class ArenaEngine:
         elif winner == "b":
             new_b, new_a = update_glicko2(player_b, player_a)
         else:
-            # Draw: average of both perspectives
-            new_a_if_win, _ = update_glicko2(player_a, player_b)
-            _, new_a_if_loss = update_glicko2(player_b, player_a)
-            new_b_if_win, _ = update_glicko2(player_b, player_a)
-            _, new_b_if_loss = update_glicko2(player_a, player_b)
-            from dataclasses import fields
-            new_a = player_a.__class__(
-                **{f.name: (getattr(new_a_if_win, f.name) + getattr(new_a_if_loss, f.name)) / 2
-                   for f in fields(player_a)}
-            )
-            new_b = player_b.__class__(
-                **{f.name: (getattr(new_b_if_win, f.name) + getattr(new_b_if_loss, f.name)) / 2
-                   for f in fields(player_b)}
-            )
+            new_a, new_b = draw_glicko2(player_a, player_b)
 
         await eq.save(self._pool, model_a, env_name, new_a, match_id)
         await eq.save(self._pool, model_b, env_name, new_b, match_id)
@@ -186,13 +176,10 @@ class ArenaEngine:
         return await mq.win_matrix(self._pool, env_name)
 
     async def get_model_profile(self, model_name: str, env_name: str) -> dict:
+        from backend.db.queries.matches import list_model_matches
         player   = await eq.get_or_create(self._pool, model_name, env_name)
         history  = await eq.get_history(self._pool, model_name, env_name)
-        matches  = await mq.list_matches(self._pool, env_name=env_name)
-        my_matches = [
-            m for m in matches
-            if m["model_a"] == model_name or m["model_b"] == model_name
-        ]
+        my_matches = await list_model_matches(self._pool, model_name, env_name)
         wins = sum(
             1 for m in my_matches if m.get("status") == "done" and (
                 (m["model_a"] == model_name and m.get("winner") == "a") or
@@ -213,6 +200,13 @@ class ArenaEngine:
 
     async def list_envs_with_ratings(self) -> list[str]:
         return await eq.list_envs(self._pool)
+
+    async def shutdown(self) -> None:
+        """Cancel all pending match tasks on shutdown."""
+        if self._pending_tasks:
+            for task in list(self._pending_tasks):
+                task.cancel()
+            await asyncio.gather(*self._pending_tasks, return_exceptions=True)
 
 
 def _judge(metrics_a: dict, metrics_b: dict, config: dict) -> str:

@@ -11,23 +11,15 @@ class GlickoPlayer:
 
 
 # Glicko-2 constants
-_Q    = math.log(10) / 400
 _TAU  = 0.5      # system constant controlling volatility change speed
 
 
-def _g(rd: float) -> float:
-    return 1.0 / math.sqrt(1 + 3 * _Q**2 * rd**2 / math.pi**2)
-
-
-def _E(rating: float, opp_rating: float, opp_rd: float) -> float:
-    return 1.0 / (1 + 10 ** (-_g(opp_rd) * (rating - opp_rating) / 400))
-
-
-def _f(x: float, delta: float, v: float, a: float, tau: float) -> float:
-    ex  = math.exp(x)
-    d2  = delta**2
-    r2  = v
-    return (ex * (d2 - r2 - ex)) / (2 * (r2 + ex)**2) - (x - a) / tau**2
+def _f(x: float, delta: float, v: float, phi: float, a: float, tau: float) -> float:
+    ex   = math.exp(x)
+    phi2 = phi ** 2
+    num  = ex * (delta**2 - phi2 - v - ex)
+    den  = 2 * (phi2 + v + ex) ** 2
+    return num / den - (x - a) / tau**2
 
 
 def update_glicko2(
@@ -37,6 +29,15 @@ def update_glicko2(
     new_winner = _update_one(winner, loser, score=1.0)
     new_loser  = _update_one(loser, winner, score=0.0)
     return new_winner, new_loser
+
+
+def draw_glicko2(
+    player_a: GlickoPlayer, player_b: GlickoPlayer
+) -> tuple[GlickoPlayer, GlickoPlayer]:
+    """Apply a draw result using score=0.5 for both players."""
+    new_a = _update_one(player_a, player_b, score=0.5)
+    new_b = _update_one(player_b, player_a, score=0.5)
+    return new_a, new_b
 
 
 def _update_one(player: GlickoPlayer, opponent: GlickoPlayer, score: float) -> GlickoPlayer:
@@ -64,15 +65,15 @@ def _update_one(player: GlickoPlayer, opponent: GlickoPlayer, score: float) -> G
         B = math.log(delta**2 - phi**2 - v)
     else:
         k = 1
-        while _f(a - k * _TAU, delta, v, a, _TAU) < 0:
+        while _f(a - k * _TAU, delta, v, phi, a, _TAU) < 0:
             k += 1
         B = a - k * _TAU
 
-    fA = _f(A, delta, v, a, _TAU)
-    fB = _f(B, delta, v, a, _TAU)
+    fA = _f(A, delta, v, phi, a, _TAU)
+    fB = _f(B, delta, v, phi, a, _TAU)
     for _ in range(100):
         C  = A + (A - B) * fA / (fB - fA)
-        fC = _f(C, delta, v, a, _TAU)
+        fC = _f(C, delta, v, phi, a, _TAU)
         if fB * fC < 0:
             A, fA = B, fB
         else:

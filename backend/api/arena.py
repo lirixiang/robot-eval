@@ -27,6 +27,11 @@ def _mask_blind(match: dict) -> dict:
         return {**match, "model_b": "?"}
     return match
 
+def _require_pool():
+    if db.pool is None:
+        raise HTTPException(503, "Database not ready")
+    return db.pool
+
 def _get_engine():
     from backend.engines.arena_engine import arena_engine
     if arena_engine is None:
@@ -53,13 +58,13 @@ async def list_matches(
     env_name: str | None = None,
 ):
     from backend.db.queries import matches as mq
-    matches = await mq.list_matches(db.pool, status=status, env_name=env_name)
+    matches = await mq.list_matches(_require_pool(), status=status, env_name=env_name)
     return [_mask_blind(m) for m in matches]
 
 @router.get("/matches/{match_id}")
 async def get_match(match_id: str):
     from backend.db.queries import matches as mq
-    match = await mq.get_match(db.pool, match_id)
+    match = await mq.get_match(_require_pool(), match_id)
     if not match:
         raise HTTPException(404, f"Match {match_id} not found")
     return _mask_blind(match)
@@ -72,7 +77,7 @@ async def get_leaderboard(env: str = Query(..., description="Environment name"))
 @router.get("/envs")
 async def list_envs():
     from backend.db.queries import elo as elq
-    return await elq.list_envs(db.pool)
+    return await elq.list_envs(_require_pool())
 
 @router.get("/models/{model_name}")
 async def get_model_profile(model_name: str, env: str = Query(...)):
