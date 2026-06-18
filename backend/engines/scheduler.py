@@ -132,7 +132,10 @@ async def _handle_failure(pool, job_id, run_id, error, job, queue):
         # Fix 3: schedule delayed re-enqueue without blocking the current actor
         async def _delayed_enqueue():
             await asyncio.sleep(backoff)
-            await queue.put(job_id)
+            # Re-check status before re-queuing — job may have been cancelled during backoff
+            current = await jq.get_job(pool, job_id)
+            if current and current.get("status") not in ("cancelled", "failed_final"):
+                await queue.put(job_id)
         asyncio.create_task(_delayed_enqueue())
     else:
         await jq.update_job_status(pool, job_id, "failed_final")

@@ -144,6 +144,7 @@ export async function fetchTrend(model: string, env: string, days = 30): Promise
   return r.json()
 }
 
+// TODO: Phase 4 — used by TemplatesView (not yet implemented)
 export async function fetchTemplates(): Promise<Template[]> {
   const r = await fetch(`${BASE}/templates`)
   if (!r.ok) throw new Error(await r.text())

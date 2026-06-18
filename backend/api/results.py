@@ -1,6 +1,7 @@
 """GET /api/results — returns completed jobs with their latest run metrics,
 shaped as JobResult for the frontend ResultsView."""
 from __future__ import annotations
+import json
 from fastapi import APIRouter
 from backend.db import db
 
@@ -32,8 +33,6 @@ async def list_results():
             ORDER BY r.finished_at DESC
             """
         )
-    import json
-
     results = []
     for row in rows:
         job_config = row["job"]

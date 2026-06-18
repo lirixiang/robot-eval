@@ -55,7 +55,7 @@ export interface Template {
 
 // ── Analysis ───────────────────────────────────────────────────────────────────
 export interface AnalysisCompare {
-  runs: { id: string; job_id: string; metrics: Record<string, number>; finished_at: number | null }[]
+  runs: { id: string; job_id: string; metrics: Record<string, number>; finished_at: number | null; elapsed_s: number | null }[]
   metrics: Record<string, Record<string, number | string>>
   episodes: ({ index: number } & Record<string, boolean>)[]
 }

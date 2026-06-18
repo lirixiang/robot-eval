@@ -53,9 +53,9 @@ def _extract_episodes(raw: dict) -> list[EpisodeResult]:
         sr = raw.get("success_rate", 0.0)
         return [
             EpisodeResult(
-                index=i, success=(i < int(n * sr)),
+                index=i, success=(i < round(n * sr)),
                 reward_total=0.0, steps=0,
-                termination_reason="success" if i < int(n * sr) else "timeout",
+                termination_reason="success" if i < round(n * sr) else "timeout",
             )
             for i in range(n)
         ]

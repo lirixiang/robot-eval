@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Job } from '../types'
 import type { ViewName } from '../App'
-import { setBaseline, reproduceJob } from '../api'
+import { setBaseline } from '../api'
 import { STATUS_CHIP_CLASS, RetryBadge } from './StatusChip'
 
 interface Props {

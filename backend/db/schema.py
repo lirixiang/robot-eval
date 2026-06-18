@@ -148,3 +148,9 @@ async def create_tables(pool: asyncpg.Pool) -> None:
         await conn.execute("""
         ALTER TABLE jobs ADD COLUMN IF NOT EXISTS config JSONB DEFAULT '{}';
         """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_runs_job_id     ON runs(job_id);
+            CREATE INDEX IF NOT EXISTS idx_episodes_run_id ON episodes(run_id);
+            CREATE INDEX IF NOT EXISTS idx_runs_status     ON runs(status);
+            CREATE INDEX IF NOT EXISTS idx_jobs_model_name ON jobs(model_name);
+        """)
