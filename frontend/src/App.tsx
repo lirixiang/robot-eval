@@ -10,8 +10,9 @@ import WorkersView    from './components/WorkersView'
 import StreamModal    from './components/StreamModal'
 import LeaderboardView from './components/LeaderboardView'
 import AnalysisView   from './components/AnalysisView'
+import ArenaView      from './components/ArenaView'
 
-export type ViewName = 'dashboard' | 'submit' | 'jobs' | 'results' | 'workers' | 'leaderboard' | 'analysis'
+export type ViewName = 'dashboard' | 'submit' | 'jobs' | 'results' | 'workers' | 'leaderboard' | 'analysis' | 'arena'
 
 export default function App() {
   const { view, params, navigate, setParam } = useRouter()
@@ -95,6 +96,7 @@ export default function App() {
       if (e.key === 'w' || e.key === 'W') navigate('workers')
       if (e.key === 'l' || e.key === 'L') navigate('leaderboard')
       if (e.key === 'a' || e.key === 'A') navigate('analysis')
+      if (e.key === 'r' || e.key === 'R') navigate('arena')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -113,6 +115,7 @@ export default function App() {
     { id: 'workers',     label: '集群',    icon: 'fa-server' },
     { id: 'leaderboard', label: '榜单',    icon: 'fa-trophy' },
     { id: 'analysis',    label: '分析',    icon: 'fa-chart-line' },
+    { id: 'arena',       label: '竞技场',  icon: 'fa-swords' },
   ]
 
   // ── Aggregate metrics ──────────────────────────────────────────────────────
@@ -244,6 +247,9 @@ export default function App() {
         {view === 'analysis' && (
           <AnalysisView initialRunIds={analysisRunIds} />
         )}
+        {view === 'arena' && (
+          <ArenaView />
+        )}
       </main>
 
       {/* ── FOOTER ─────────────────────────────────────────────────────── */}
@@ -264,6 +270,7 @@ export default function App() {
         <span><kbd className="kbd">W</kbd> 集群</span>
         <span><kbd className="kbd">L</kbd> 榜单</span>
         <span><kbd className="kbd">A</kbd> 分析</span>
+        <span><kbd className="kbd">R</kbd> 竞技场</span>
         <span className="text-ink-600">RoboEval · Ray + isaaclab_arena</span>
       </footer>
 

@@ -1,4 +1,4 @@
-import type { Job, SubmitRequest, Configs, Worker, JobResult, Leaderboard, Host, HostStatus, RemoteWorker, AddHostRequest, Run, AnalysisCompare, TrendPoint, Template } from './types'
+import type { Job, SubmitRequest, Configs, Worker, JobResult, Leaderboard, Host, HostStatus, RemoteWorker, AddHostRequest, Run, AnalysisCompare, TrendPoint, Template, Match, EloEntry, WinMatrixEntry, ModelProfile } from './types'
 
 const BASE = '/api'
 
@@ -147,6 +147,53 @@ export async function fetchTrend(model: string, env: string, days = 30): Promise
 // TODO: Phase 4 — used by TemplatesView (not yet implemented)
 export async function fetchTemplates(): Promise<Template[]> {
   const r = await fetch(`${BASE}/templates`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ── Phase 3: Arena / Elo ──────────────────────────────────────────────────────
+
+export async function fetchMatches(params?: { status?: string; env_name?: string }): Promise<Match[]> {
+  const q = new URLSearchParams((params as Record<string, string>) ?? {})
+  const r = await fetch(`${BASE}/arena/matches?${q}`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function createMatch(req: {
+  env_name: string; model_a: string; model_b: string;
+  mode?: string; is_blind?: boolean; num_episodes?: number;
+  judge_config?: Record<string, unknown>; arena_env_args?: Record<string, unknown>;
+  policy_server_url_a?: string; policy_server_url_b?: string;
+}): Promise<Match> {
+  const r = await fetch(`${BASE}/arena/matches`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function fetchArenaLeaderboard(env: string): Promise<EloEntry[]> {
+  const r = await fetch(`${BASE}/arena/leaderboard?env=${encodeURIComponent(env)}`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function fetchArenaEnvs(): Promise<string[]> {
+  const r = await fetch(`${BASE}/arena/envs`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function fetchWinMatrix(env: string): Promise<WinMatrixEntry[]> {
+  const r = await fetch(`${BASE}/arena/matrix?env=${encodeURIComponent(env)}`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function fetchModelProfile(model: string, env: string): Promise<ModelProfile> {
+  const r = await fetch(`${BASE}/arena/models/${encodeURIComponent(model)}?env=${encodeURIComponent(env)}`)
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }

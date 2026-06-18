@@ -156,6 +156,53 @@ export interface Leaderboard {
   environments:      string[]
 }
 
+// ── Arena / Elo ───────────────────────────────────────────────────────────────
+
+export interface Match {
+  id:           string
+  env_name:     string
+  mode:         'direct' | 'swiss' | 'round_robin'
+  status:       'pending' | 'running' | 'done'
+  model_a:      string
+  model_b:      string   // "?" if blind and not done
+  winner:       'a' | 'b' | 'draw' | null
+  is_blind:     boolean
+  seed:         number | null
+  judge_config: Record<string, unknown>
+  created_at:   string
+  finished_at:  string | null
+}
+
+export interface EloEntry {
+  model_name: string
+  env_name:   string
+  rating:     number
+  rd:         number
+  ci_low:     number
+  ci_high:    number
+  updated_at: string
+}
+
+export interface WinMatrixEntry {
+  model_a: string
+  model_b: string
+  wins_a:  number
+  wins_b:  number
+  draws:   number
+}
+
+export interface ModelProfile {
+  model_name:    string
+  env_name:      string
+  rating:        number
+  rd:            number
+  ci_low:        number
+  ci_high:       number
+  total_matches: number
+  wins:          number
+  history:       { rating: number; rd: number; match_id: string; recorded_at: string }[]
+}
+
 // ── Host management ───────────────────────────────────────────────────────────
 
 export interface Host {

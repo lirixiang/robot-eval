@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { fetchLeaderboard } from '../api'
-import type { Leaderboard, LeaderboardRow } from '../types'
+import { fetchLeaderboard, fetchArenaLeaderboard, fetchArenaEnvs, fetchWinMatrix } from '../api'
+import type { Leaderboard, LeaderboardRow, EloEntry, WinMatrixEntry } from '../types'
+
+type Tab = 'traditional' | 'elo'
 
 const MEDAL = ['🥇', '🥈', '🥉']
 
@@ -59,7 +61,188 @@ function TopCard({ row, rank }: { row: LeaderboardRow; rank: number }) {
   )
 }
 
+function WinMatrix({ entries }: { entries: WinMatrixEntry[] }) {
+  // Get unique model names
+  const models = Array.from(new Set(entries.flatMap(e => [e.model_a, e.model_b]))).sort()
+  if (models.length === 0) return null
+
+  // Build lookup
+  const lookup: Record<string, WinMatrixEntry> = {}
+  for (const e of entries) {
+    lookup[`${e.model_a}__${e.model_b}`] = e
+    lookup[`${e.model_b}__${e.model_a}`] = { model_a: e.model_b, model_b: e.model_a, wins_a: e.wins_b, wins_b: e.wins_a, draws: e.draws }
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="text-[11px] text-ink-500 mb-2">胜率矩阵（行 vs 列）</div>
+      <table className="text-[11px] border-collapse">
+        <thead>
+          <tr>
+            <th className="w-28 px-2 py-1" />
+            {models.map(m => (
+              <th key={m} className="px-2 py-1 text-ink-400 font-normal text-left max-w-[80px]">
+                <span className="truncate block max-w-[80px]" title={m}>{m.slice(0, 10)}{m.length > 10 ? '…' : ''}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {models.map(rowModel => (
+            <tr key={rowModel}>
+              <td className="px-2 py-1 text-ink-300 font-medium max-w-[112px]">
+                <span className="truncate block max-w-[112px]" title={rowModel}>{rowModel.slice(0, 14)}{rowModel.length > 14 ? '…' : ''}</span>
+              </td>
+              {models.map(colModel => {
+                if (rowModel === colModel) {
+                  return (
+                    <td key={colModel} className="px-2 py-1">
+                      <div className="w-10 h-6 rounded bg-ink-800 flex items-center justify-center text-ink-600">—</div>
+                    </td>
+                  )
+                }
+                const entry = lookup[`${rowModel}__${colModel}`]
+                if (!entry) {
+                  return (
+                    <td key={colModel} className="px-2 py-1">
+                      <div className="w-10 h-6 rounded bg-ink-900 border border-ink-800 flex items-center justify-center text-ink-700 text-[10px]">–</div>
+                    </td>
+                  )
+                }
+                const total = entry.wins_a + entry.wins_b + entry.draws
+                const winRate = total > 0 ? entry.wins_a / total : 0.5
+                // green for high win rate, red for low
+                const r = Math.round(239 * (1 - winRate))
+                const g = Math.round(196 * winRate)
+                const bg = `rgba(${r},${g},0,0.5)`
+                return (
+                  <td key={colModel} className="px-2 py-1">
+                    <div
+                      className="w-10 h-6 rounded flex items-center justify-center text-[10px] font-semibold text-white"
+                      style={{ background: bg }}
+                      title={`${rowModel} vs ${colModel}: ${entry.wins_a}W ${entry.wins_b}L ${entry.draws}D`}
+                    >
+                      {(winRate * 100).toFixed(0)}%
+                    </div>
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function EloTabContent() {
+  const [eloEnvs, setEloEnvs]   = useState<string[]>([])
+  const [eloEnv, setEloEnv]     = useState('lift_object')
+  const [entries, setEntries]   = useState<EloEntry[]>([])
+  const [matrix, setMatrix]     = useState<WinMatrixEntry[]>([])
+  const [loading, setLoading]   = useState(false)
+
+  useEffect(() => {
+    fetchArenaEnvs().then(e => {
+      if (e.length > 0) {
+        setEloEnvs(e)
+        if (!e.includes(eloEnv)) setEloEnv(e[0])
+      }
+    }).catch(() => {})
+  }, [eloEnv])
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      fetchArenaLeaderboard(eloEnv),
+      fetchWinMatrix(eloEnv),
+    ]).then(([lb, mx]) => {
+      setEntries(lb)
+      setMatrix(mx)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [eloEnv])
+
+  const displayEnvs = eloEnvs.length > 0 ? eloEnvs : ['lift_object']
+
+  return (
+    <div className="space-y-5">
+      {/* Env selector */}
+      <div className="flex items-center gap-3">
+        <span className="tag text-ink-500">环境</span>
+        <div className="seg">
+          {displayEnvs.map(e => (
+            <button key={e} className={eloEnv === e ? 'on' : ''} onClick={() => setEloEnv(e)}>
+              {e.length > 20 ? e.slice(0, 18) + '…' : e}
+            </button>
+          ))}
+        </div>
+        {loading && <span className="spinner" />}
+      </div>
+
+      {/* Elo table */}
+      <div className="form-section p-0 overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-ink-800 flex items-center gap-3 grad-head">
+          <i className="fas fa-ranking-star text-gold text-[11px]" />
+          <span className="text-[13px] font-semibold text-white">Elo 排名 · {eloEnv}</span>
+          <span className="chip chip-env text-[10px]">{entries.length} 个模型</span>
+        </div>
+        {entries.length === 0 && !loading ? (
+          <div className="text-center py-10 text-ink-600 text-sm">
+            <i className="fas fa-swords text-2xl block mb-2 opacity-20" />
+            暂无 Elo 数据 — 在竞技场发起对战后自动更新
+          </div>
+        ) : (
+          <table className="w-full text-[12px]">
+            <thead className="text-ink-500 text-[10px] tracking-wider uppercase sticky top-0 bg-ink-950 z-10">
+              <tr className="border-b border-ink-800">
+                <th className="text-left font-normal px-4 py-2 w-12">排名</th>
+                <th className="text-left font-normal px-2">模型</th>
+                <th className="text-right font-normal px-2">Elo 分</th>
+                <th className="text-right font-normal px-2">置信区间</th>
+                <th className="text-right font-normal px-4">更新时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...entries].sort((a, b) => b.rating - a.rating).map((e, i) => {
+                const color = e.rating >= 1600 ? '#10b981' : e.rating >= 1400 ? '#d4a857' : '#6b7280'
+                return (
+                  <tr key={e.model_name} className="row-hover border-b border-ink-800/50">
+                    <td className="px-4 py-2.5">
+                      {i < 3
+                        ? <span className="text-base">{MEDAL[i]}</span>
+                        : <span className="num text-ink-400 text-[12px]">#{i + 1}</span>
+                      }
+                    </td>
+                    <td className="px-2 py-2.5 font-semibold text-white">{e.model_name}</td>
+                    <td className="px-2 py-2.5 text-right">
+                      <span className="num font-bold text-[13px]" style={{ color }}>{Math.round(e.rating)}</span>
+                    </td>
+                    <td className="px-2 py-2.5 text-right text-ink-400 num text-[11px]">
+                      [{Math.round(e.ci_low)}, {Math.round(e.ci_high)}]
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-ink-500">
+                      {e.updated_at ? new Date(e.updated_at).toLocaleDateString('zh-CN') : '–'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Win-rate matrix */}
+      {matrix.length > 0 && (
+        <div className="form-section">
+          <WinMatrix entries={matrix} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function LeaderboardView() {
+  const [tab, setTab] = useState<Tab>('traditional')
   const [board, setBoard]   = useState<Leaderboard | null>(null)
   const [envFilter, setEnvFilter] = useState<string>('all')
   const [loading, setLoading]     = useState(true)
@@ -96,16 +279,35 @@ export default function LeaderboardView() {
             公开榜单
           </h1>
           <p className="text-[11px] text-ink-500 mt-0.5">
-            {total} 次提交 · 按成功率排名 · 每个模型取最佳成绩
+            {tab === 'traditional'
+              ? `${total} 次提交 · 按成功率排名 · 每个模型取最佳成绩`
+              : 'Elo 竞技排名 · Glicko-2 算法 · 基于对战结果'}
           </p>
         </div>
         <div className="flex-1" />
-        <div className="text-[11px] text-ink-500 flex items-center gap-1.5">
-          <i className="fas fa-info-circle" />
-          提交方式：设置 <code className="bg-ink-800 px-1 rounded text-gold">policy_server_url</code> 并运行评测
+        {/* Tab switcher */}
+        <div className="seg">
+          <button className={tab === 'traditional' ? 'on' : ''} onClick={() => setTab('traditional')}>
+            <i className="fas fa-trophy mr-1.5 text-[10px]" />
+            传统榜单
+          </button>
+          <button className={tab === 'elo' ? 'on' : ''} onClick={() => setTab('elo')}>
+            <i className="fas fa-swords mr-1.5 text-[10px]" />
+            Elo 竞技榜
+          </button>
         </div>
+        {tab === 'traditional' && (
+          <div className="text-[11px] text-ink-500 flex items-center gap-1.5">
+            <i className="fas fa-info-circle" />
+            提交方式：设置 <code className="bg-ink-800 px-1 rounded text-gold">policy_server_url</code> 并运行评测
+          </div>
+        )}
       </div>
 
+      {tab === 'elo' ? (
+        <EloTabContent />
+      ) : (
+        <>
       {/* Podium — top 3 across all environments */}
       {top3.length > 0 && (
         <div className="space-y-2">
@@ -231,7 +433,8 @@ export default function LeaderboardView() {
           </div>
         </div>
       </div>
-
+        </>
+      )}
     </div>
   )
 }
