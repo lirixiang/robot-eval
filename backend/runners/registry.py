@@ -9,10 +9,20 @@ def _lazy_remote_policy():
     from backend.runners.remote_policy import RemotePolicyRunner
     return RemotePolicyRunner
 
+def _lazy_lmeval():
+    from backend.runners.lmeval_runner import LMEvalRunner
+    return LMEvalRunner
+
+def _lazy_subprocess():
+    from backend.runners.subprocess_runner import SubprocessRunner
+    return SubprocessRunner
+
 _REGISTRY: dict[str, type[BaseRunner]] = {}
 _LAZY: dict[str, callable] = {
     "isaaclab":      _lazy_isaaclab,
     "remote_policy": _lazy_remote_policy,
+    "lmeval":        _lazy_lmeval,
+    "subprocess":    _lazy_subprocess,
 }
 
 def get_runner(runner_type: str, config: dict) -> BaseRunner:
