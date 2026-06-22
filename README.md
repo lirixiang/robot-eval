@@ -1,172 +1,183 @@
-# Robot Eval Platform
+# 🤖 RoboEval
 
-分布式机器人仿真评测平台。基于 Ray + Isaac Sim，支持多模型评测、Elo 排行榜、GPU 调度。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev)
+[![Ray](https://img.shields.io/badge/Ray-2.52-blue.svg)](https://docs.ray.io)
 
-## 系统架构
+**基于 Isaac Lab + Ray 的分布式机器人策略评测平台**
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         用户 / 浏览器                              │
-│                    http://localhost:8000                          │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────┐
-│  FastAPI 后端 (backend/main.py)                                   │
-│                                                                   │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌─────────────┐  │
-│  │ JobEngine │  │ Scheduler │  │NodeManager│  │ ArenaEngine │  │
-│  │ 任务管理   │  │ GPU 调度   │  │ 节点管理   │  │ Elo 对战    │  │
-│  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └──────┬──────┘  │
-│        │               │               │               │          │
-│  ┌─────▼───────────────▼───────────────▼───────────────▼──────┐  │
-│  │                    PostgreSQL                                │  │
-│  │  jobs | runs | episodes | matches | elo_ratings | nodes     │  │
-│  └────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │ Ray API
-         ┌─────────────────────┼─────────────────────┐
-         ▼                     ▼                     ▼
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Worker 0    │     │  Worker 1    │     │  Worker N    │
-│  Ray Actor   │     │  Ray Actor   │     │  Ray Actor   │
-│  Isaac Sim   │     │  Isaac Sim   │     │  Isaac Sim   │
-│  GPU 0       │     │  GPU 1       │     │  GPU N       │
-└──────────────┘     └──────────────┘     └──────────────┘
-```
+[English](README_EN.md) · [问题反馈](https://github.com/lirixiang/robot-eval/issues)
 
-## 核心功能
+![screenshot](docs/screenshot.png)
 
-| 模块 | 功能 |
+---
+
+## ✨ 功能特性
+
+| 功能 | 说明 |
 |------|------|
-| **评测提交** | Web 表单 / API 提交评测任务，支持内置策略和远程 Policy Server |
-| **GPU 调度** | 优先级堆 + Bin Packing，显存感知，GPU 型号亲和 |
-| **节点管理** | 自动发现 Ray 节点，心跳检测，drain/undrain 操作 |
-| **结果分析** | 成功率、UPH、cycle time 等指标，支持 baseline 对比 |
-| **Elo 排行榜** | 模型对战 Arena，Glicko-2 评分，胜率矩阵 |
-| **实时画面** | Isaac Sim 仿真画面 MJPEG 流 |
+| 📋 **任务提交** | 可视化表单配置环境、机器人本体、策略类型，实时 JSON 预览 |
+| 📊 **任务队列** | 实时日志流、取消/重试、状态追踪 |
+| 🏆 **竞技榜单** | Glicko-2 Elo 排名，bootstrap 置信区间显著性检验 |
+| 🔬 **结果分析** | 多轮次对比、趋势图、逐 episode 指标 |
+| 🖥️ **Worker 管理** | Ray 集群实时状态，GPU 利用率，节点扩缩容 |
+| 🔌 **外部模型接入** | HTTP Policy Server 协议，标准接口快速接入 |
+| 🎥 **实时预览** | Isaac Sim WebRTC 原生推流，MJPEG 备用 |
 
-## 调度规则（当前）
+## 🏗️ 架构
 
 ```
-Job 提交 → 进入优先级堆（priority 小=高优先）
-              │
-              ▼
-       调度器取堆顶 Job
-              │
-              ▼
-    遍历所有 Worker，过滤:
-     ① busy=true → 跳过
-     ② gpu_type 不匹配 → 跳过
-     ③ gpu_count 不够 → 跳过
-              │
-              ▼
-    剩余候选按"剩余显存升序"排序
-    选最小的（Bin Packing）
-              │
-              ▼
-     派发执行 actor.run_job()
-              │
-         ┌────┴────┐
-         ▼         ▼
-       成功       失败 → 2^n 秒退避重试（最多 max_retries 次）
-         │
-         ▼
-    worker 标记空闲，唤醒调度器处理下一个
+┌─────────────────────────────────────────┐
+│           浏览器 (React 18)              │
+└────────────────┬────────────────────────┘
+                 │ HTTP / SSE
+┌────────────────▼────────────────────────┐
+│        FastAPI 平台服务                  │
+│   JobScheduler · ArenaEngine · API      │
+└──────┬──────────────────────┬───────────┘
+       │ asyncpg              │ Ray Client
+┌──────▼──────┐    ┌──────────▼───────────┐
+│ PostgreSQL  │    │     Ray 集群          │
+│   (任务/    │    │  ray-head + worker-* │
+│    榜单)    │    │  IsaacLabArenaActor  │
+└─────────────┘    └──────────────────────┘
 ```
 
-**当前限制**: 1 GPU = 1 Worker = 同时 1 Job（不支持 GPU 共享）
+**技术栈**
 
-## 目录结构
+- 后端：FastAPI · asyncpg · structlog · Ray 2.52
+- 前端：React 18 · TypeScript · Vite · Tailwind CSS
+- 仿真：Isaac Lab 3.0 / Isaac Sim 6.0（NVIDIA NGC）
+- 分布式：Ray Client 模式，GPU worker 按需扩展
+
+## 🚀 快速开始
+
+### 前置条件
+
+- Docker + Docker Compose
+- NVIDIA GPU（Isaac Lab worker 需要）
+- `isaaclab_arena:latest` 镜像（或自行从 Dockerfile.worker 构建）
+
+### 1. 克隆仓库
+
+```bash
+git clone https://github.com/lirixiang/robot-eval.git
+cd robot-eval
+```
+
+### 2. 配置环境
+
+```bash
+cp .env.example .env
+# 编辑 .env，按需修改密码和路径
+```
+
+### 3. 修改 Isaac Sim 缓存路径
+
+编辑 `docker-compose.yml`，将 worker 的 volume 路径替换为你的 Isaac Sim 安装目录：
+
+```yaml
+volumes:
+  - /your/isaacsim/cache/ov:/root/.cache/ov
+  - /your/isaacsim/cache/kit:/isaac-sim/kit/cache
+  # ... 其余缓存路径
+```
+
+### 4. 构建并启动
+
+```bash
+# 构建前端
+cd frontend && npm install && npm run build && cd ..
+
+# 启动所有服务
+docker compose up -d
+```
+
+访问 **http://localhost:8000**
+
+### 5. 扩展 Worker 节点
+
+在其他 GPU 机器上执行：
+
+```bash
+docker run -d --runtime=nvidia --network=host \
+  --gpus='"device=0"' \
+  -v /your/isaacsim:/your/isaacsim \
+  isaaclab_arena:latest \
+  bash -c "ray start --address=<主节点IP>:6379 --num-gpus=1 --block"
+```
+
+## ⚙️ 配置说明
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `DATABASE_URL` | `postgresql://eval:...@127.0.0.1:5432/robot_eval` | PostgreSQL 连接串 |
+| `RAY_ADDRESS` | `ray://127.0.0.1:10001` | Ray Client 连接地址 |
+| `EVAL_ACTOR_MODULE` | `arena_actor` | Actor 模块名 |
+| `EVAL_ACTOR_CLASS` | `IsaacLabArenaActor` | Actor 类名 |
+| `EVAL_PYTHONPATH` | `/workspaces/isaaclab_arena:...` | Isaac Lab Python 路径 |
+
+> 自定义 eval 后端：实现与 `IsaacLabArenaActor` 相同接口的类，设置 `EVAL_ACTOR_MODULE` / `EVAL_ACTOR_CLASS` / `EVAL_PYTHONPATH` 即可替换。
+
+## 🔌 外部模型接入
+
+实现以下三个接口即可接入榜单：
+
+```python
+from policy_server import PolicyBase, serve
+
+class MyPolicy(PolicyBase):
+    info = {"model": "my-model", "submitter": "My Lab"}
+
+    def reset(self, episode_id, env_info): ...
+
+    def act(self, observations, episode_id, step):
+        return [0.0] * observations["action_dim"]
+
+serve(MyPolicy(), port=7860)
+```
+
+在评测表单选择「外部模型」，填入 `http://<your-server>:7860` 即可。
+
+## 📁 项目结构
 
 ```
 robot-eval/
 ├── backend/
-│   ├── main.py                 # FastAPI 入口，启动串联
-│   ├── base_actor.py           # Actor 协议定义 + gpu_info() 实现
-│   ├── arena_actor.py          # Isaac Lab Arena Actor 实现
-│   ├── api/
-│   │   ├── jobs.py             # POST /api/jobs 提交评测
-│   │   ├── runs.py             # 运行记录查询
-│   │   ├── workers.py          # Worker 状态 + Ray 集群信息
-│   │   ├── nodes.py            # 节点管理（drain/undrain）
-│   │   ├── arena.py            # Elo 对战 API
-│   │   ├── analysis.py         # 结果分析 / baseline 对比
-│   │   ├── templates.py        # 评测模板管理
-│   │   ├── results.py          # 排行榜
-│   │   └── configs.py          # 前端配置
-│   ├── engines/
-│   │   ├── scheduler.py        # GPU 调度器（RayScheduler + K8sScheduler）
-│   │   ├── job_engine.py       # 任务创建 / 取消 / 复现
-│   │   ├── arena_engine.py     # Elo 对战引擎
-│   │   ├── analysis_engine.py  # 分析引擎
-│   │   └── node_manager.py     # 节点心跳 / 健康检查
-│   ├── db/
-│   │   ├── schema.py           # 建表 + migration
-│   │   └── queries/            # 每个实体一个模块（jobs/runs/episodes/nodes...）
-│   ├── elo/
-│   │   ├── calculator.py       # Glicko-2 算法
-│   │   └── significance.py     # 统计显著性检验
-│   └── runners/
-│       ├── registry.py         # Runner 注册表
-│       ├── isaaclab_runner.py   # Isaac Lab 仿真 Runner
-│       ├── lmeval_runner.py    # LM-Eval Runner
-│       └── remote_policy.py    # 远程 Policy Server 客户端
+│   ├── api/          # FastAPI 路由（jobs/workers/configs/arena）
+│   ├── db/           # asyncpg 数据库层 + schema
+│   ├── engines/      # JobScheduler · ArenaEngine
+│   ├── runners/      # BaseRunner + IsaacLabRunner 插件
+│   ├── arena_actor.py        # Ray Actor（Isaac Sim 封装）
+│   └── main.py               # 应用入口 + lifespan
 ├── frontend/
 │   └── src/
-│       ├── App.tsx             # 路由
-│       ├── api.ts              # 后端 API 客户端
-│       ├── types.ts            # TypeScript 类型
-│       └── components/
-│           ├── SubmitView.tsx   # 任务提交表单（含 GPU 调度选项）
-│           ├── JobsView.tsx     # 任务列表 + 日志
-│           ├── WorkersView.tsx  # Worker 状态 + 集群面板
-│           ├── ArenaView.tsx    # Elo 对战
-│           ├── LeaderboardView.tsx
-│           ├── ResultsView.tsx
-│           └── ...
-├── deploy/
-│   ├── README.md              # 部署文档
-│   └── k8s/                   # K8s 部署 yaml（KubeRay + Volcano）
-├── tests/                     # 83 个测试（pytest）
-├── docker-compose.yml         # 本地部署（Ray Head + Worker + Postgres + 平台）
-├── Dockerfile                 # 平台镜像
-└── Makefile                   # make up / down / build / fe / logs
+│       └── components/       # EvalView · JobsView · WorkersView · ...
+├── isaac-sim/
+│   └── streaming_local.kit   # Isaac Sim WebRTC 流配置
+├── docker-compose.yml
+├── Dockerfile
+└── Dockerfile.worker         # 无私有镜像时自行构建
 ```
 
-## 快速启动
+## 🤝 贡献
 
-```bash
-# 启动所有服务
-make up
+欢迎 PR 和 Issue。提交规范参考 [Conventional Commits](https://www.conventionalcommits.org)。
 
-# 前端开发（热更新）
-cd frontend && npm run dev
+## ⚠️ 免责声明
 
-# 跑测试
-python3.10 -m pytest tests/ -q
+本项目仅用于科研与工程评测，仿真结果不代表真实物理环境性能。
 
-# 查看日志
-make logs
-```
+## 📬 联系作者
 
-## 数据流
+如有问题或合作意向，欢迎通过 GitHub Issues 联系。
 
-```
-1. 用户在 SubmitView 填表 → POST /api/jobs
-2. JobEngine.create_job() → 写 DB + Scheduler.enqueue()
-3. Scheduler 从优先级堆取 job → 匹配空闲 Worker
-4. Worker (Ray Actor) 执行 Isaac Sim 仿真
-5. 返回 metrics → 写 runs 表 + episodes 表
-6. Worker 释放 → Scheduler 处理下一个 job
-7. 前端轮询展示结果 / Leaderboard 更新
-```
+**如果这个项目对你有帮助，欢迎 Star ⭐**
 
-## 环境变量
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `DATABASE_URL` | `postgresql://eval:eval_secret@127.0.0.1:5432/robot_eval` | 数据库 |
-| `RAY_ADDRESS` | `ray://127.0.0.1:10001` | Ray 集群地址 |
-| `SCHEDULER_BACKEND` | `ray` | 调度后端：`ray`（本地）或 `k8s`（Volcano） |
-| `EVAL_ACTOR_MODULE` | `arena_actor` | Actor 类所在模块 |
-| `EVAL_ACTOR_CLASS` | `IsaacLabArenaActor` | Actor 类名 |
+<div align="center">
+  <img src="docs/alipay-qr.jpg" width="160" alt="支付宝" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/wechat-qr.jpg" width="160" alt="微信" />
+</div>
