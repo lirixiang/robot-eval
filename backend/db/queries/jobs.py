@@ -8,7 +8,8 @@ async def create_job(
     submitter: str | None = None, policy_config: dict | None = None,
     policy_server_url: str = "", max_retries: int = 3,
     timeout_s: int = 3600, description: str | None = None,
-    config: dict | None = None,   # NEW — full SubmitRequest fields
+    config: dict | None = None,
+    priority: int = 5, num_gpus: int = 1, gpu_type: str = "",
 ) -> dict:
     now = time.time()
     async with pool.acquire() as conn:
@@ -16,12 +17,14 @@ async def create_job(
             """INSERT INTO jobs
                (id,name,template_id,model_name,submitter,policy_config,
                 policy_server_url,max_retries,timeout_s,description,config,
+                priority,num_gpus,gpu_type,
                 status,created_at,updated_at)
-               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12,$12)
+               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending',$15,$15)
                RETURNING *""",
             id, name, template_id, model_name, submitter,
             json.dumps(policy_config or {}), policy_server_url,
-            max_retries, timeout_s, description, json.dumps(config or {}), now,
+            max_retries, timeout_s, description, json.dumps(config or {}),
+            priority, num_gpus, gpu_type, now,
         )
     return _row(row)
 

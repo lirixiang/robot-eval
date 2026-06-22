@@ -90,6 +90,9 @@ export default function TemplatesView() {
         model_name: '',
         submitter: '',
         description: `Benchmark run for template ${t.name}@${t.version}`,
+        priority: 5,
+        num_gpus: 1,
+        gpu_type: '',
       }
       // Try to parse config_yaml for env args
       try {

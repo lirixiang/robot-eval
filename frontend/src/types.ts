@@ -12,6 +12,10 @@ export interface SubmitRequest {
   model_name:        string
   submitter:         string
   description:       string
+  // GPU scheduling
+  priority:          number
+  num_gpus:          number
+  gpu_type:          string
 }
 
 // ── Run (a single attempt for a job) ──────────────────────────────────────────
@@ -261,4 +265,25 @@ export interface AddHostRequest {
   port:     number
   username: string
   password: string
+}
+
+// ── Cluster Node (from /api/nodes) ───────────────────────────────────────────
+export interface ClusterNode {
+  id:              string
+  host:            string
+  gpu_count:       number
+  gpu_type:        string
+  total_memory_mb: number
+  labels:          Record<string, string>
+  status:          'healthy' | 'unhealthy' | 'draining' | 'unknown'
+  last_heartbeat:  number | null
+  gpu_status:      NodeGpuStatus[]
+}
+
+export interface NodeGpuStatus {
+  index:           number
+  free_memory_mb:  number
+  total_memory_mb: number
+  utilization_pct: number
+  temperature:     number
 }

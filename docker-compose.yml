@@ -138,16 +138,16 @@ services:
       - ray-head
 
   # ── Isaac Lab Worker 1（GPU 1，取消注释以启用）────────────────────────────────
-  # isaac-lab-worker-1:
-  #   <<: *isaac-lab-base
-  #   container_name: isaac-lab-worker-1
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=1
-  #     - WORKER_ID=1
-  #     - HTTP_PORT=8043
-  #     - LIVESTREAM_PORT=49201
-  #     - EVAL_ACTOR_MODULE=arena_actor
-  #     - EVAL_ACTOR_CLASS=IsaacLabArenaActor
-  #     - EVAL_PYTHONPATH=/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments
-  #   depends_on:
-  #     - ray-head
+  isaac-lab-worker-1:
+    <<: *isaac-lab-base
+    container_name: isaac-lab-worker-1
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=2
+      - WORKER_ID=1
+      - HTTP_PORT=8043
+      - LIVESTREAM_PORT=49201
+      - EVAL_ACTOR_MODULE=arena_actor
+      - EVAL_ACTOR_CLASS=IsaacLabArenaActor
+      - EVAL_PYTHONPATH=/workspaces/isaaclab_arena:/workspaces/isaaclab_arena/isaaclab_arena_environments
+    depends_on:
+      - ray-head

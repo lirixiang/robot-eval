@@ -32,6 +32,9 @@ class SubmitRequest(BaseModel):
     policy_server_url: str        = ""
     max_retries:      int         = 3
     timeout_s:        int         = 3600
+    priority:         int         = 5
+    num_gpus:         int         = 1
+    gpu_type:         str         = ""
 
 @router.post("")
 async def submit_job(req: SubmitRequest):
@@ -48,6 +51,9 @@ async def submit_job(req: SubmitRequest):
         num_episodes=req.num_episodes,
         num_steps=req.num_steps,
         policy_type=req.policy_type,
+        priority=req.priority,
+        num_gpus=req.num_gpus,
+        gpu_type=req.gpu_type,
     )
     # Stash full config as first log entry for reproduce fidelity
     await jq.append_log(db.pool, job["id"], json.dumps(config))

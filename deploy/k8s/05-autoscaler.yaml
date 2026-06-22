@@ -1,0 +1,34 @@
+# HPA: auto-scale Ray workers based on pending GPU requests
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ray-worker-hpa
+  namespace: robot-eval
+spec:
+  scaleTargetRef:
+    apiVersion: ray.io/v1
+    kind: RayCluster
+    name: robot-eval-ray
+  minReplicas: 1
+  maxReplicas: 8
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: ray_pending_tasks
+      target:
+        type: AverageValue
+        averageValue: "2"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 120
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 300

@@ -52,11 +52,21 @@ async def lifespan(app: FastAPI):
         logger.warning("ray.unavailable", error=str(exc))
 
     # Start scheduler — workers come directly from Ray, no DB needed
-    from backend.engines.scheduler import JobScheduler
+    from backend.engines.scheduler import create_scheduler
     from backend.engines.job_engine import JobEngine
+    from backend.engines.node_manager import NodeManager
 
     workers = _ray_workers_meta()
-    scheduler = JobScheduler(db.pool, workers)
+    _scheduler_backend = os.environ.get("SCHEDULER_BACKEND", "ray")
+
+    # Node Manager
+    import backend.engines.node_manager as nm_mod
+    nm = NodeManager(db.pool)
+    nm_mod.node_manager = nm
+    await nm.start()
+
+    # Scheduler (Ray local or K8s)
+    scheduler = create_scheduler(db.pool, workers, backend=_scheduler_backend)
     await scheduler.start()
 
     # Wire singletons so routers can import them
@@ -132,6 +142,7 @@ from backend.api.analysis  import router as analysis_router
 from backend.api.results   import router as results_router
 from backend.api.arena     import router as arena_router
 from backend.api.configs   import router as configs_router
+from backend.api.nodes     import router as nodes_router
 
 app.include_router(jobs_router)
 app.include_router(runs_router)
@@ -141,6 +152,7 @@ app.include_router(analysis_router)
 app.include_router(results_router)
 app.include_router(arena_router)
 app.include_router(configs_router)
+app.include_router(nodes_router)
 
 @app.get("/api/health")
 async def health():

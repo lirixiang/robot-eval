@@ -68,6 +68,9 @@ export default function DashboardView({ jobs, results, workers, activeJob, logs,
         model_name: '',
         submitter: '',
         description: '',
+        priority: 5,
+        num_gpus: 1,
+        gpu_type: '',
       })
     } finally { setSubmitting(false) }
   }

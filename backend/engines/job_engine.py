@@ -22,6 +22,9 @@ class JobEngine:
         num_episodes: int | None = 10,
         num_steps: int | None = None,
         policy_type: str = "zero_action",
+        priority: int = 5,
+        num_gpus: int = 1,
+        gpu_type: str = "",
     ) -> dict:
         job_id = uuid.uuid4().hex[:8]
         config = {
@@ -36,10 +39,14 @@ class JobEngine:
             model_name=model_name, submitter=submitter,
             policy_config=policy_config or {}, policy_server_url=policy_server_url,
             max_retries=max_retries, timeout_s=timeout_s, description=description,
-            config=config,
+            config=config, priority=priority, num_gpus=num_gpus, gpu_type=gpu_type,
         )
-        await self._scheduler.enqueue(job_id)
-        logger.info("job.created", job_id=job_id, model=model_name)
+        await self._scheduler.enqueue(
+            job_id, priority=priority, num_gpus=num_gpus,
+            gpu_type=gpu_type, submitter=submitter or "",
+        )
+        logger.info("job.created", job_id=job_id, model=model_name,
+                    priority=priority, num_gpus=num_gpus)
         return job
 
     async def cancel_job(self, job_id: str) -> None:

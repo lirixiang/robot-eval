@@ -1,0 +1,109 @@
+# KubeRay RayCluster — GPU workers for Isaac Sim evaluation
+# Prerequisites: KubeRay operator installed (helm install kuberay-operator kuberay/kuberay-operator)
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: robot-eval-ray
+  namespace: robot-eval
+spec:
+  rayVersion: "2.52.1"
+  headGroupSpec:
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+      num-cpus: "2"
+      num-gpus: "0"
+    template:
+      metadata:
+        labels:
+          app: ray-head
+      spec:
+        containers:
+        - name: ray-head
+          image: isaaclab_arena:latest
+          ports:
+          - containerPort: 6379
+            name: gcs
+          - containerPort: 8265
+            name: dashboard
+          - containerPort: 10001
+            name: client
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+          env:
+          - name: RAY_GRAFANA_HOST
+            value: "http://grafana.monitoring.svc:3000"
+  workerGroupSpecs:
+  - groupName: gpu-workers
+    replicas: 2
+    minReplicas: 1
+    maxReplicas: 8
+    rayStartParams:
+      num-gpus: "1"
+    template:
+      metadata:
+        labels:
+          app: ray-worker
+      spec:
+        containers:
+        - name: ray-worker
+          image: isaaclab_arena:latest
+          resources:
+            requests:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: "32Gi"
+              nvidia.com/gpu: "1"
+          env:
+          - name: NVIDIA_DRIVER_CAPABILITIES
+            value: "all"
+          - name: EVAL_ACTOR_MODULE
+            value: "arena_actor"
+          - name: EVAL_ACTOR_CLASS
+            value: "IsaacLabArenaActor"
+          volumeMounts:
+          - name: shm
+            mountPath: /dev/shm
+          - name: models
+            mountPath: /isaac-sim/models
+            readOnly: true
+        volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+        - name: models
+          persistentVolumeClaim:
+            claimName: models-pvc
+            readOnly: true
+        tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+---
+# Services for Ray head
+apiVersion: v1
+kind: Service
+metadata:
+  name: ray-head-svc
+  namespace: robot-eval
+spec:
+  selector:
+    app: ray-head
+  ports:
+  - name: client
+    port: 10001
+    targetPort: 10001
+  - name: dashboard
+    port: 8265
+    targetPort: 8265
+  - name: gcs
+    port: 6379
+    targetPort: 6379

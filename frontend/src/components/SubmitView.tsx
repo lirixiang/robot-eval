@@ -36,6 +36,10 @@ interface FormState {
   model_name:        string
   submitter:         string
   description:       string
+  // GPU scheduling
+  priority:          number
+  num_gpus:          number
+  gpu_type:          string
 }
 
 const DEFAULT_FORM = (configs: Configs): FormState => ({
@@ -55,6 +59,9 @@ const DEFAULT_FORM = (configs: Configs): FormState => ({
   model_name:        '',
   submitter:         '',
   description:       '',
+  priority:          5,
+  num_gpus:          1,
+  gpu_type:          '',
 })
 
 function formToRequest(f: FormState): SubmitRequest {
@@ -77,6 +84,9 @@ function formToRequest(f: FormState): SubmitRequest {
     model_name:        f.model_name,
     submitter:         f.submitter,
     description:       f.description,
+    priority:          f.priority,
+    num_gpus:          f.num_gpus,
+    gpu_type:          f.gpu_type,
   }
 }
 
@@ -235,6 +245,41 @@ serve(MyPolicy(), port=7860)`}</pre>
             <div className="col-span-2">
               <label className="text-[11px] text-ink-500 block mb-1">任务名称 <span className="text-ink-600">(留空自动生成)</span></label>
               <input className="inp" placeholder="e.g. lift-franka-v1" value={form.job_name} onChange={e => set('job_name', e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        {/* GPU 调度配置 */}
+        <div className="form-section space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="tag text-ink-400">GPU 调度</span>
+            <span className="chip chip-env text-[10px]">scheduling</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] text-ink-500 block mb-1">优先级</label>
+              <select className="inp" value={form.priority} onChange={e => set('priority', +e.target.value)}>
+                <option value={1}>1 - 最高</option>
+                <option value={2}>2 - 紧急</option>
+                <option value={3}>3 - 高</option>
+                <option value={5}>5 - 普通</option>
+                <option value={7}>7 - 低</option>
+                <option value={9}>9 - 最低</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-ink-500 block mb-1">GPU 数量</label>
+              <input type="number" className="inp" min={1} max={8} value={form.num_gpus} onChange={e => set('num_gpus', +e.target.value)} />
+            </div>
+            <div>
+              <label className="text-[11px] text-ink-500 block mb-1">GPU 型号 <span className="text-ink-600">(可选)</span></label>
+              <select className="inp" value={form.gpu_type} onChange={e => set('gpu_type', e.target.value)}>
+                <option value="">不限</option>
+                <option value="A100">A100</option>
+                <option value="H100">H100</option>
+                <option value="RTX 4090">RTX 4090</option>
+                <option value="RTX 3090">RTX 3090</option>
+              </select>
             </div>
           </div>
         </div>

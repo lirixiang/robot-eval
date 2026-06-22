@@ -143,6 +143,18 @@ async def create_tables(pool: asyncpg.Pool) -> None:
             line    TEXT,
             ts      DOUBLE PRECISION
         );
+
+        CREATE TABLE IF NOT EXISTS nodes (
+            id              TEXT PRIMARY KEY,
+            host            TEXT NOT NULL,
+            gpu_count       INTEGER DEFAULT 1,
+            gpu_type        TEXT DEFAULT '',
+            total_memory_mb INTEGER DEFAULT 0,
+            labels          JSONB DEFAULT '{}',
+            status          TEXT DEFAULT 'unknown',
+            last_heartbeat  DOUBLE PRECISION,
+            gpu_status      JSONB DEFAULT '[]'
+        );
         """)
         # Migrations: add columns that didn't exist in older schema versions
         await conn.execute("""
@@ -158,6 +170,9 @@ async def create_tables(pool: asyncpg.Pool) -> None:
         ALTER TABLE jobs ADD COLUMN IF NOT EXISTS timeout_s         INTEGER DEFAULT 3600;
         ALTER TABLE jobs ADD COLUMN IF NOT EXISTS retry_count       INTEGER DEFAULT 0;
         ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description       TEXT;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS priority          INTEGER DEFAULT 5;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS num_gpus          INTEGER DEFAULT 1;
+        ALTER TABLE jobs ADD COLUMN IF NOT EXISTS gpu_type          TEXT DEFAULT '';
         """)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_runs_job_id     ON runs(job_id);

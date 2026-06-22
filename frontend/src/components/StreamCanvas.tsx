@@ -16,15 +16,26 @@ export default function StreamCanvas({ workerId, className = '' }: Props) {
     if (!img) return
 
     let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let connectTimer: ReturnType<typeof setTimeout> | null = null
     const src = `/api/workers/${workerId}/mjpeg`
 
     const start = () => {
       setStatus('connecting')
-      img.src = src
+      img.src = ''
+      // Small delay to force re-fetch
+      setTimeout(() => { img.src = src }, 50)
+      // If no load event within 8s, assume error
+      connectTimer = setTimeout(() => {
+        if (img.naturalWidth === 0) setStatus('error')
+      }, 8000)
     }
 
-    img.onload = () => setStatus('live')
+    img.onload = () => {
+      if (connectTimer) clearTimeout(connectTimer)
+      setStatus('live')
+    }
     img.onerror = () => {
+      if (connectTimer) clearTimeout(connectTimer)
       setStatus('error')
       retryTimer = setTimeout(start, 3000)
     }
@@ -33,6 +44,9 @@ export default function StreamCanvas({ workerId, className = '' }: Props) {
 
     return () => {
       if (retryTimer) clearTimeout(retryTimer)
+      if (connectTimer) clearTimeout(connectTimer)
+      img.onload = null
+      img.onerror = null
       img.src = ''
     }
   }, [workerId])
@@ -43,8 +57,7 @@ export default function StreamCanvas({ workerId, className = '' }: Props) {
 
       <img
         ref={imgRef}
-        className="max-w-full max-h-full object-contain relative z-1"
-        style={{ display: status === 'live' ? 'block' : 'none' }}
+        className={`max-w-full max-h-full object-contain relative z-1 ${status !== 'live' ? 'opacity-0 absolute' : ''}`}
       />
       <div className="scanlines" />
 

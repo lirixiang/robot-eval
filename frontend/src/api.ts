@@ -1,4 +1,4 @@
-import type { Job, SubmitRequest, Configs, Worker, JobResult, Leaderboard, Host, HostStatus, RemoteWorker, AddHostRequest, Run, AnalysisCompare, TrendPoint, Template, Match, EloEntry, WinMatrixEntry, ModelProfile } from './types'
+import type { Job, SubmitRequest, Configs, Worker, JobResult, Leaderboard, Host, HostStatus, RemoteWorker, AddHostRequest, Run, AnalysisCompare, TrendPoint, Template, Match, EloEntry, WinMatrixEntry, ModelProfile, ClusterNode } from './types'
 
 const BASE = '/api'
 
@@ -106,10 +106,31 @@ export interface RayStatus {
   cpu_total: number; cpu_used: number
   gpu_total: number; gpu_used: number
   mem_total_gb: number
+  queue_depth: number
 }
 
 export async function fetchRayStatus(): Promise<RayStatus> {
   const r = await fetch(`${BASE}/ray/status`)
+  return r.json()
+}
+
+// ── Nodes (GPU scheduling) ───────────────────────────────────────────────────
+
+export async function fetchNodes(): Promise<ClusterNode[]> {
+  const r = await fetch(`${BASE}/nodes`)
+  return r.json()
+}
+
+export async function drainNode(nodeId: string): Promise<void> {
+  await fetch(`${BASE}/nodes/${nodeId}/drain`, { method: 'POST' })
+}
+
+export async function undrainNode(nodeId: string): Promise<void> {
+  await fetch(`${BASE}/nodes/${nodeId}/undrain`, { method: 'POST' })
+}
+
+export async function refreshNodes(): Promise<ClusterNode[]> {
+  const r = await fetch(`${BASE}/nodes/refresh`, { method: 'POST' })
   return r.json()
 }
 

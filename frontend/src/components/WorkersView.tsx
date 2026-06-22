@@ -94,7 +94,7 @@ export default function WorkersView({ workers, onOpenModal, onRefresh }: Props) 
             { label: '节点数', value: rayStatus ? String(rayStatus.nodes) : '—',                         icon: 'fa-server' },
             { label: 'CPU 核', value: rayStatus ? `${rayStatus.cpu_used}/${rayStatus.cpu_total}` : '—',  icon: 'fa-microchip' },
             { label: 'GPU 数', value: rayStatus ? `${rayStatus.gpu_used}/${rayStatus.gpu_total}` : '—',  icon: 'fa-gpu' },
-            { label: '内存',   value: rayStatus ? `${rayStatus.mem_total_gb} GB` : '—',                  icon: 'fa-memory' },
+            { label: '队列深度', value: rayStatus ? String(rayStatus.queue_depth ?? 0) : '—',   icon: 'fa-layer-group' },
           ].map(s => (
             <div key={s.label} className="bg-ink-950 rounded-lg p-3 border border-ink-800">
               <div className="flex items-center gap-1.5 text-ink-500 text-[10px] mb-1">

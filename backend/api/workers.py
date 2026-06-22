@@ -7,6 +7,16 @@ from fastapi.responses import StreamingResponse
 router = APIRouter(tags=["workers"])
 logger = structlog.get_logger(__name__)
 
+
+def _get_queue_depth() -> int:
+    try:
+        from backend.engines.job_engine import job_engine
+        if job_engine and job_engine._scheduler:
+            return job_engine._scheduler.queue_depth()
+    except Exception:
+        pass
+    return 0
+
 @router.get("/api/workers")
 async def get_workers():
     """Return worker list — reads GPU nodes directly from Ray, no DB."""
@@ -64,11 +74,12 @@ async def ray_status():
             "gpu_total":    gpu_total,
             "gpu_used":     max(0, gpu_total - gpu_avail),
             "mem_total_gb": round(mem_bytes / (1024**3), 1) if mem_bytes else 0,
+            "queue_depth":  _get_queue_depth(),
         }
     except Exception as exc:
         logger.warning("ray.status_error", error=str(exc))
         return {"online": False, "nodes": 0, "cpu_total": 0, "cpu_used": 0,
-                "gpu_total": 0, "gpu_used": 0, "mem_total_gb": 0}
+                "gpu_total": 0, "gpu_used": 0, "mem_total_gb": 0, "queue_depth": 0}
 
 @router.get("/api/workers/{worker_id}/stream")
 async def worker_stream_info(worker_id: int):

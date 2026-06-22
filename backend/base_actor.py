@@ -88,6 +88,14 @@ class EvalActorProtocol(Protocol):
         """
         ...
 
+    def gpu_info(self) -> dict[str, Any]:
+        """
+        Returns GPU status for scheduling decisions.
+        Keys: free_memory_mb, total_memory_mb, gpu_type, utilization_pct, temperature
+        Default implementation uses nvidia-smi; override for custom behavior.
+        """
+        ...
+
 
 def load_actor_class(module_name: str, class_name: str):
     """
@@ -103,3 +111,32 @@ def load_actor_class(module_name: str, class_name: str):
     module = importlib.import_module(module_name)
     cls = getattr(module, class_name)
     return cls
+
+
+def query_gpu_info() -> dict[str, Any]:
+    """
+    Default gpu_info() implementation using nvidia-smi.
+    Actor classes can call this directly or override with custom logic.
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["nvidia-smi",
+             "--query-gpu=memory.free,memory.total,name,utilization.gpu,temperature.gpu",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return {"free_memory_mb": 0, "total_memory_mb": 0, "gpu_type": "",
+                    "utilization_pct": 0, "temperature": 0}
+        parts = [p.strip() for p in result.stdout.strip().split(",")]
+        return {
+            "free_memory_mb":  int(parts[0]) if parts[0].isdigit() else 0,
+            "total_memory_mb": int(parts[1]) if parts[1].isdigit() else 0,
+            "gpu_type":        parts[2] if len(parts) > 2 else "",
+            "utilization_pct": int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0,
+            "temperature":     int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0,
+        }
+    except Exception:
+        return {"free_memory_mb": 0, "total_memory_mb": 0, "gpu_type": "",
+                "utilization_pct": 0, "temperature": 0}

@@ -1,0 +1,96 @@
+# Volcano scheduler configuration for robot-eval
+# Prerequisites: Volcano installed (helm install volcano volcano/volcano -n volcano-system)
+#
+# This is OPTIONAL — only needed if SCHEDULER_BACKEND=k8s
+# For the recommended setup (SCHEDULER_BACKEND=ray + KubeRay), these are not required.
+
+---
+# Priority Classes — map to job priority field (1-9)
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: critical
+value: 1000000
+globalDefault: false
+description: "Priority 1-2: critical evaluation jobs"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high
+value: 100000
+globalDefault: false
+description: "Priority 3-4: high priority jobs"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: normal
+value: 10000
+globalDefault: true
+description: "Priority 5-7: normal jobs (default)"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: low
+value: 1000
+globalDefault: false
+description: "Priority 8-9: low priority / exploratory jobs"
+
+---
+# Queues — one per team/submitter, with GPU quotas
+apiVersion: scheduling.volcano.sh/v1beta1
+kind: Queue
+metadata:
+  name: default
+spec:
+  weight: 5
+  reclaimable: true
+  capability:
+    nvidia.com/gpu: "16"
+---
+apiVersion: scheduling.volcano.sh/v1beta1
+kind: Queue
+metadata:
+  name: team-sim
+spec:
+  weight: 4
+  reclaimable: true
+  capability:
+    nvidia.com/gpu: "8"
+---
+apiVersion: scheduling.volcano.sh/v1beta1
+kind: Queue
+metadata:
+  name: team-train
+spec:
+  weight: 6
+  reclaimable: true
+  capability:
+    nvidia.com/gpu: "16"
+
+---
+# Volcano scheduler config — Bin Packing + Gang + Priority
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: volcano-scheduler-configmap
+  namespace: volcano-system
+data:
+  volcano-scheduler.conf: |
+    actions: "enqueue, allocate, backfill"
+    tiers:
+    - plugins:
+      - name: gang
+        enablePreemptable: true
+      - name: priority
+      - name: conformance
+    - plugins:
+      - name: overcommit
+      - name: nodeorder
+        arguments:
+          leastrequested.weight: 0
+          mostrequested.weight: 10
+      - name: predicates
+      - name: proportion
