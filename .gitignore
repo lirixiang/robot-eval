@@ -3,11 +3,18 @@ __pycache__/
 *.pyc
 *.mp4
 *.egg-info/
-.claude/settings.json
-platform/backend/jobs.db
+.claude/
+platform/
 backend/jobs.db
 .env
 frontend/node_modules/
+frontend/dist/
 data/
 *.db
 frontend/tsconfig.tsbuildinfo
+
+# Internal / generated files
+prototype.html
+docs/superpowers/
+.hypothesis/
+.pytest_cache/
